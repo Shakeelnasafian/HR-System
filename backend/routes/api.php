@@ -5,7 +5,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1')->middleware(['auth:sanctum', 'auth.session'])->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/me', fn (Request $r) => response()->json(['data' => [
         'id' => $r->user()->id, 'name' => $r->user()->name, 'email' => $r->user()->email,
         'mfa_enrolled' => (bool) $r->user()->two_factor_confirmed_at,

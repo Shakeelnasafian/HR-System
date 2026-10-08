@@ -64,8 +64,8 @@ export function Workspace({user, logout}: {user: User; logout: () => Promise<voi
 function SessionApp(){
  const [user,setUser]=useState<User|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState('')
  async function refresh(){try{const r=await api<{data:User}>('/api/v1/me');setUser(r.data);setError('')}catch(e){setUser(null);if(!(e instanceof ApiError && e.status===401))setError((e as Error).message)}finally{setLoading(false)}}
- useEffect(()=>{void refresh()},[])
- async function logout(){try{await csrf();await api('/logout',{method:'POST'});setUser(null);window.location.assign('/login')}catch(e){setError((e as Error).message)}}
+ useEffect(()=>{void refresh();const expired=()=>{setUser(null);setError('Your session expired. Please sign in again.')};window.addEventListener('session-expired',expired);const channel=typeof BroadcastChannel==='undefined'?null:new BroadcastChannel('hr-auth');if(channel)channel.onmessage=()=>{setUser(null)};return()=>{window.removeEventListener('session-expired',expired);channel?.close()}},[])
+ async function logout(){try{await csrf();await api('/logout',{method:'POST'});setUser(null);if(typeof BroadcastChannel!=='undefined'){const c=new BroadcastChannel('hr-auth');c.postMessage('logout');c.close()}window.location.assign('/login')}catch(e){setError((e as Error).message)}}
  if(loading)return <main className="auth" role="status">Opening your workspace…</main>
  return <>{error&&<div className="global-error" role="alert">{error}</div>}{user?<Workspace user={user} logout={logout}/>:<Routes><Route path="/forgot-password" element={<PasswordForm/>}/><Route path="/reset-password" element={<PasswordForm reset/>}/><Route path="*" element={<Login refresh={refresh}/>}/></Routes>}</>
 }

@@ -22,6 +22,7 @@ class FoundationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withHeader('Origin', 'http://localhost');
         config(['database.connections.fixture' => array_merge(config('database.connections.pgsql'), [
             'username' => env('TEST_ADMIN_USERNAME', 'postgres'), 'password' => env('TEST_ADMIN_PASSWORD', 'postgres'),
         ])]);

@@ -15,6 +15,7 @@ export async function api<T>(path: string, options: {method?: string; body?: unk
     body: options.body === undefined ? undefined : JSON.stringify(options.body)})
   const body = response.status === 204 ? null : await response.json().catch(() => null)
   if (!response.ok) {
+    if (response.status === 401 && path.startsWith('/api/')) window.dispatchEvent(new Event('session-expired'))
     const message = body?.errors ? Object.values(body.errors).flat().join(' ') : body?.message
     throw new ApiError(response.status, message || `Request failed (${response.status}). Please try again.`)
   }

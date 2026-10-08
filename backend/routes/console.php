@@ -13,10 +13,10 @@ Artisan::command('hr:grant-runtime', function () {
     $this->info('Runtime grants applied.');
 })->purpose('Apply explicit runtime grants using the migration owner connection');
 
-Artisan::command('hr:demo', function () {
+Artisan::command('hr:demo {--email=} {--password-env=}', function () {
     if (! app()->environment('local')) { $this->error('Local environments only.'); return 1; }
-    $email=$this->ask('Demo email (synthetic data only)', 'admin@example.test');
-    $password=$this->secret('Demo password (at least 12 characters)');
+    $email=$this->option('email') ?: $this->ask('Demo email (synthetic data only)', 'admin@example.test');
+    $password=$this->option('password-env') ? getenv($this->option('password-env')) : $this->secret('Demo password (at least 12 characters)');
     if (!filter_var($email,FILTER_VALIDATE_EMAIL) || strlen((string)$password)<12) { $this->error('Invalid email or password length.'); return 1; }
     if(DB::table('users')->where('email',$email)->exists()){$this->error('User already exists. No changes made.');return 1;}
     DB::transaction(function() use ($email,$password){
