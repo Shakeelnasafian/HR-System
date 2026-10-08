@@ -1,6 +1,6 @@
 # Foundation backlog and acceptance plan
 
-Status: proposed implementation work, not started. Documentation scope was approved; application work requires approval of the architecture and initial increment. No dates or effort estimates are promised without capacity information.
+Status: implementation authorized and underway. The owner subsequently requested continuing remaining modules. See implementation-status.md and module-tracker.md for actual delivery and evidence; this table retains the original acceptance plan. No dates or effort estimates are promised without capacity information.
 
 ## Recommended implementation sequence
 
@@ -47,4 +47,4 @@ Full endpoint schemas and state-transition contracts are required per module bef
 - Async: real reusable worker, failure injection and retry; verify outbox/notification deduplication independently from queue locks.
 - Operations: clean migration, backup/restore of database plus private files, readiness behavior and failure monitoring.
 
-Record commands, versions, environment, assertions and results. A successful build is not proof of business correctness. No above tests have been executed during documentation preparation.
+Record commands, versions, environment, assertions and results. A successful build is not proof of business correctness. The original documentation phase did not execute these tests; current evidence is tracked in implementation-status.md.
