@@ -1,0 +1,77 @@
+# Local development only. Secrets belong in the root .env (never committed).
+x-backend: &backend
+  build:
+    context: .
+    dockerfile: infra/backend.Dockerfile
+  environment: &backend-env
+    APP_KEY: ${APP_KEY:?Set APP_KEY}
+    APP_ENV: local
+    APP_URL: http://localhost:8080
+    APP_DEBUG: 'false'
+    DB_CONNECTION: pgsql
+    DB_HOST: postgres
+    DB_DATABASE: hr_platform
+    DB_USERNAME: hr_app
+    DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD}
+    SESSION_DRIVER: database
+    SESSION_ENCRYPT: 'true'
+    SANCTUM_STATEFUL_DOMAINS: localhost:8080
+    CACHE_STORE: redis
+    QUEUE_CONNECTION: redis
+    REDIS_CLIENT: predis
+    REDIS_HOST: redis
+    LOG_CHANNEL: stderr
+    MAIL_MAILER: log
+  volumes: ['private-files:/app/storage/app/private']
+  depends_on:
+    postgres: {condition: service_healthy}
+    redis: {condition: service_healthy}
+services:
+  web:
+    build:
+      context: .
+      dockerfile: infra/web.Dockerfile
+    ports: ['127.0.0.1:8080:80']
+    depends_on: [api]
+  api:
+    <<: *backend
+  worker:
+    <<: *backend
+    command: ['php', 'artisan', 'queue:work', 'redis', '--tries=3', '--timeout=60']
+  scheduler:
+    <<: *backend
+    command: ['php', 'artisan', 'schedule:work']
+  migrate:
+    <<: *backend
+    profiles: [tools]
+    environment:
+      <<: *backend-env
+      DB_USERNAME: hr_owner
+      DB_PASSWORD: ${OWNER_DB_PASSWORD:?Set OWNER_DB_PASSWORD}
+    command: ['sh', '-c', 'php artisan migrate --force && php artisan hr:grant-runtime']
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: hr_platform
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD}
+      OWNER_DB_PASSWORD: ${OWNER_DB_PASSWORD:?Set OWNER_DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d hr_platform']
+      interval: 5s
+      retries: 10
+  redis:
+    image: redis:8
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    volumes: ['redis-data:/data']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      retries: 10
+volumes:
+  postgres-data:
+  redis-data:
+  private-files:
