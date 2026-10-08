@@ -137,7 +137,10 @@ test("real cookie login, privileged MFA enrollment and company scope", async ({
     path: "test-results/workspace-mobile.png",
     fullPage: true,
   });
+  const logoutResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/logout" && response.request().method() === "POST");
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  expect((await logoutResponse).status()).toBe(204);
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
   expect(
     (
       await page.request.get("/api/v1/me", {
