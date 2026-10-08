@@ -1,0 +1,86 @@
+name: Foundation validation
+on:
+  push:
+    branches: [feat/api-spa-foundation]
+  pull_request:
+    paths: ['backend/**', 'frontend/**', 'infra/**', 'compose.yaml', '.github/workflows/foundation.yml']
+permissions:
+  contents: read
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hr_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:8
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      APP_URL: http://localhost
+      APP_DEBUG: 'false'
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_DATABASE: hr_test
+      DB_USERNAME: hr_app
+      DB_PASSWORD: test-only-password
+      TEST_ADMIN_USERNAME: postgres
+      TEST_ADMIN_PASSWORD: postgres
+      REDIS_CLIENT: predis
+      REDIS_HOST: 127.0.0.1
+      QUEUE_CONNECTION: redis
+      SESSION_DRIVER: array
+      CACHE_STORE: array
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_pgsql, mbstring, xml, curl, zip, pcntl
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - name: Migrate using separate owner
+        run: php artisan migrate --force
+        env:
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+      - name: Provision restricted runtime role
+        run: psql -h 127.0.0.1 -U postgres -d hr_test -f ../infra/postgres/test-runtime.sql
+        env:
+          PGPASSWORD: postgres
+      - run: php artisan route:list --except-vendor
+      - run: vendor/bin/phpunit
+      - name: Export resolved lockfile for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: composer-lock
+          path: backend/composer.lock
+  spa:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
