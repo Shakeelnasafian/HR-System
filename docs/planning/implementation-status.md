@@ -1,6 +1,6 @@
 # Implementation status — 8 October 2026
 
-The owner authorized continuing the project with the API/SPA foundation. An independent build is underway in the supplied repository; Company Tools source has not been inspected and no reuse claim is made. The API-based React SPA requirement is preserved. No production release or merge has occurred.
+The owner authorized continuing the project with the API/SPA foundation. An independent build is underway in the supplied repository; Company Tools source has not been inspected and no reuse claim is made. The API-based React SPA requirement is preserved. The owner merged documentation PR #1 into main and foundation PR #2 into the documentation branch. Draft PR #3 now targets main with the foundation and workforce additions. No production deployment has occurred.
 
 ## Implemented
 

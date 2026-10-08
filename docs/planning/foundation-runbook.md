@@ -4,7 +4,7 @@ This is a local development stack, not a production deployment configuration. Bi
 
 ## Start locally
 
-Prerequisites: Docker Engine with Compose v2. Node/PHP are built in the containers. Checkout `feat/api-spa-foundation` (PR #2 is stacked on documentation PR #1).
+Prerequisites: Docker Engine with Compose v2. Node/PHP are built in the containers. Checkout `feat/organization-workforce` (draft PR #3 targets `main`). Earlier documentation PR #1 was merged into main; foundation PR #2 was merged into the documentation branch. PR #3 brings the foundation and current workforce increment together.
 
 1. Copy the root `.env.example` to `.env`. Set independent random values for `POSTGRES_PASSWORD`, `OWNER_DB_PASSWORD` and `APP_DB_PASSWORD`. Set `APP_KEY` to `base64:` followed by a base64 encoding of 32 cryptographically random bytes. These values must remain local. `openssl rand -base64 32` can generate the random material.
 2. Build and initialize:

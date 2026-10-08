@@ -656,6 +656,7 @@ function EmployeeDetail({
   async function transition(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!action) return;
+    const values = Object.fromEntries(new FormData(e.currentTarget));
     setBusy(true);
     setError("");
     try {
@@ -664,7 +665,7 @@ function EmployeeDetail({
         tenant,
         method: "POST",
         body: {
-          ...Object.fromEntries(new FormData(e.currentTarget)),
+          ...values,
           version: action.employment.version,
         },
       });
