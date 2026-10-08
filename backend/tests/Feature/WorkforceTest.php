@@ -108,4 +108,28 @@ class WorkforceTest extends FoundationFixture
         $this->assertSame(1,DB::connection('fixture')->table('employments')->count());
         $this->assertSame(2,DB::connection('fixture')->table('audit_events')->count());
     }
+
+    public function test_concurrent_activation_serializes_across_real_connections(): void
+    {
+        $this->ready(); $p=$this->person();
+        $second=$this->postJson($this->url('employees/'.$p['id'].'/employments'),['employment_number'=>'E002','start_date'=>'2026-02-01'])->assertCreated()->json('data.id');
+        $barrier=storage_path('logs/activation-'.Str::uuid()); $processes=[];
+        try {
+            foreach([$p['employment_id'],$second] as $id) {
+                $process=new \Symfony\Component\Process\Process([PHP_BINARY,'tests/Support/activate.php',$this->t1,(string)$this->uid,$this->a,$id,$barrier],base_path(),['APP_ENV'=>'testing']);
+                $process->setTimeout(25); $process->start(); $processes[]=$process;
+            }
+            $deadline=microtime(true)+15;
+            while(count(glob($barrier.'.*'))<2 && microtime(true)<$deadline) {usleep(10000);}
+            $this->assertCount(2,glob($barrier.'.*'),'Both processes must reach the barrier.');
+            file_put_contents($barrier,'go'); $statuses=[];
+            foreach($processes as $process) { $process->wait(); $this->assertTrue($process->isSuccessful(),$process->getErrorOutput()); $statuses[]=trim($process->getOutput()); }
+            sort($statuses); $this->assertSame(['200','409'],$statuses);
+            $this->assertSame(1,DB::connection('fixture')->table('employments')->where('status','active')->count());
+            $this->assertSame(1,DB::connection('fixture')->table('audit_events')->where('action','employment.activate')->count());
+        } finally {
+            foreach($processes as $process) { if($process->isRunning()) {$process->stop();} }
+            foreach(glob($barrier.'*') as $file) {unlink($file);}
+        }
+    }
 }

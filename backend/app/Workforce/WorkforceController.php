@@ -27,7 +27,7 @@ final class WorkforceController
     private function page(Request $r, Builder $q): JsonResource
     {
         $r->validate(['page'=>'sometimes|integer|min:1','per_page'=>'sometimes|integer|min:1|max:100']);
-        return JsonResource::collection($q->paginate((int)$r->input('per_page',25)));
+        return \App\Http\Resources\ProjectedRow::collection($q->paginate((int)$r->input('per_page',25)));
     }
     public function capabilities(string $company): array
     {

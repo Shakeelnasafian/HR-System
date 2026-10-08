@@ -34,7 +34,7 @@ Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
         ]]);
         Route::get('/companies', function (Request $r, CompanyAccess $access) {
             $r->validate(['page' => 'sometimes|integer|min:1', 'per_page' => 'sometimes|integer|min:1|max:100']);
-            return \Illuminate\Http\Resources\Json\JsonResource::collection($access->readable()->orderBy('name')->orderBy('id')->paginate((int) $r->input('per_page', 25), ['id', 'name', 'code', 'timezone']));
+            return \App\Http\Resources\ProjectedRow::collection($access->readable()->orderBy('name')->orderBy('id')->paginate((int) $r->input('per_page', 25), ['id', 'name', 'code', 'timezone']));
         });
         Route::get('/companies/{id}', function (string $id, CompanyAccess $access) {
             abort_unless(\Illuminate\Support\Str::isUuid($id), 404);
