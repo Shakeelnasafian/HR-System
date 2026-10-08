@@ -2,14 +2,14 @@
 
 A planned multi-tenant HR platform with multiple companies per tenant.
 
-**Status: architecture review; no runnable application yet.** Documentation work was approved on 7 October 2026. Application implementation and deployment have not been approved or performed.
+**Status: foundation implementation in review.** The owner approved continuing implementation on 8 October 2026. The repository now contains a Laravel API and a separate React/TypeScript SPA. Production deployment is not authorized or ready.
 
 ## Architecture direction
 
 - Laravel modular monolith exposing a versioned JSON REST API.
 - Independent React/TypeScript single-page application, built and routed separately from Laravel. **No Inertia.** This reflects the owner's explicit clarification on 7 October 2026.
 - Proposed PostgreSQL tenant isolation, Redis background processing, and Docker deployment.
-- Proposed first-party authentication: Sanctum sessions plus headless Fortify authentication/MFA, with SPA and API served through one origin initially.
+- Implemented first-party authentication: Sanctum sessions plus headless Fortify authentication/MFA, with SPA and API served through one origin initially.
 
 The API-based SPA choice is confirmed. Versions, persistence details and remaining architecture recommendations are proposed until reviewed. The original requirements remain unchanged as a traceable baseline; the API-based SPA clarification governs frontend delivery.
 
@@ -31,4 +31,4 @@ The API-based SPA choice is confirmed. Versions, persistence details and remaini
 
 V1 covers workforce, documents, leave, attendance, approvals, lifecycle tasks and reporting. Payroll calculation, AI, SaaS billing, native mobile apps and vendor-specific biometric integrations remain outside V1.
 
-There are no installation commands, application tests or deployment artifacts yet. See the foundation backlog for the proposed first implementation increment. Examples must use synthetic data; this is a public repository. No project license has been selected.
+Start with the [foundation runbook](docs/planning/foundation-runbook.md) for local Docker setup, synthetic accounts, test commands and current limitations. Read the [implementation status](docs/planning/implementation-status.md) before treating any foundation phase as complete. Examples must use synthetic data; this is a public repository. No project license has been selected.

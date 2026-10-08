@@ -8,7 +8,8 @@ Artisan::command('hr:grant-runtime', function () {
     DB::unprepared('GRANT USAGE ON SCHEMA public TO hr_app;
       GRANT SELECT, INSERT, UPDATE, DELETE ON users, sessions, password_reset_tokens, cache, cache_locks, jobs, job_batches, failed_jobs TO hr_app;
       GRANT SELECT ON tenants, tenant_memberships TO hr_app;
-      GRANT SELECT, INSERT, UPDATE, DELETE ON companies, company_grants TO hr_app;
+      GRANT SELECT, INSERT, UPDATE, DELETE ON companies, company_grants, departments, locations, positions, employees, employments TO hr_app;
+      GRANT SELECT, INSERT ON audit_events TO hr_app;
       GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO hr_app;');
     $this->info('Runtime grants applied.');
 })->purpose('Apply explicit runtime grants using the migration owner connection');
@@ -28,7 +29,9 @@ Artisan::command('hr:demo {--email=} {--password-env=}', function () {
         foreach(['Demo Company A','Demo Company B'] as $i=>$name){
             $company=(string)Str::uuid();
             DB::table('companies')->insert(['id'=>$company,'tenant_id'=>$tenant,'name'=>$name,'code'=>'DEMO-'.($i+1)]);
-            DB::table('company_grants')->insert(['tenant_id'=>$tenant,'membership_id'=>$membership,'company_id'=>$company,'permission'=>'company.read']);
+            foreach (['company.read','organization.read','organization.write','workforce.read','workforce.write','audit.read'] as $permission) {
+                DB::table('company_grants')->insert(['tenant_id'=>$tenant,'membership_id'=>$membership,'company_id'=>$company,'permission'=>$permission]);
+            }
         }
     });
     $this->info('Synthetic workspace created. Sign in and enroll MFA.');
