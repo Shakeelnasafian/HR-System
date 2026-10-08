@@ -1,8 +1,8 @@
 # HR Platform
 
-A planned multi-tenant HR platform with multiple companies per tenant.
+A multi-tenant HR platform under development with multiple companies per tenant.
 
-**Status: foundation implementation in review.** The owner approved continuing implementation on 8 October 2026. The repository now contains a Laravel API and a separate React/TypeScript SPA. Production deployment is not authorized or ready.
+**Status: foundation, organization and initial workforce implementation in review.** The owner approved continuing implementation on 8 October 2026. The repository now contains a Laravel API and a separate React/TypeScript SPA. Production deployment is not authorized or ready.
 
 ## Architecture direction
 
@@ -24,6 +24,8 @@ The API-based SPA choice is confirmed. Versions, persistence details and remaini
 | [Permissions](docs/architecture/permissions.md) | Resource/action scopes and sensitive-access rules |
 | [SPA and API contract](docs/architecture/api-contract.md) | Authentication, tenant context and API conventions |
 | [Isolation validation](docs/architecture/isolation-validation.md) | Threat model and unexecuted RLS/worker spike |
+| [Workforce API contract](docs/architecture/workforce-contract.md) | Implemented organization/workforce routes and lifecycle rules |
+| [Module tracker](docs/planning/module-tracker.md) | Delivered increments and remaining V1 work |
 | [Foundation backlog](docs/planning/foundation-backlog.md) | Ordered work, acceptance criteria and approval boundaries |
 | [Review record](docs/planning/review-record.md) | Evidence, completed checks and unresolved decisions |
 

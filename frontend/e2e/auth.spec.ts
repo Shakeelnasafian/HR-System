@@ -82,7 +82,7 @@ test("real cookie login, privileged MFA enrollment and company scope", async ({
   await page.getByLabel("Employment number", { exact: true }).fill("E001");
   await page.getByLabel("Start date", { exact: true }).fill("2026-01-01");
   await page
-    .getByLabel("Department", { exact: true })
+    .getByRole("combobox", { name: "Department", exact: true })
     .selectOption({ label: "Engineering" });
   await page.getByRole("button", { name: "Create draft", exact: true }).click();
   await expect(
