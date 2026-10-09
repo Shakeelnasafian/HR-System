@@ -2,7 +2,7 @@
 
 A multi-tenant HR platform under development with multiple companies per tenant.
 
-**Status: foundation, organization and initial workforce implementation in review.** The owner approved continuing implementation on 8 October 2026. The repository now contains a Laravel API and a separate React/TypeScript SPA. Production deployment is not authorized or ready.
+**Status: foundation and initial workforce are on main; company permission administration is in review.** The owner approved continuing implementation on 8 October 2026. The repository now contains a Laravel API and a separate React/TypeScript SPA. Production deployment is not authorized or ready.
 
 ## Architecture direction
 

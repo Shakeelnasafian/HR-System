@@ -47,11 +47,11 @@ For frontend hot reload use `npm run dev` with a Laravel development server at p
 - `/up` is Laravel's application boot health check, not a full database/queue/readiness guarantee.
 - Apply schema changes with the migrate service, then restart app/worker/scheduler processes on release.
 - `docker compose down` stops this project while preserving its volumes. Do not use `down -v` on data you intend to retain. CI removes its disposable volumes at the end of the job.
-- No public registration, user-management UI, document upload or payroll functionality is included yet. Initial organization and workforce records are available. Provisioning is limited to the explicit local demo command.
+- No public registration, invitation/membership lifecycle UI, document upload or payroll functionality is included yet. Initial organization and workforce records are available. Provisioning is limited to the explicit local demo command.
 
 ## Before production
 
-Complete foundation authorization administration, full audit coverage, private-file quarantine, outbox, monitoring, backups/restore, invitation lifecycle and policy review. Choose production hosting/secrets/mail, HTTPS cookies and origin settings. Pin reviewed image digests, scan dependencies and resolve redistribution/license requirements. Redis 8 images are used unmodified for local development/CI; the commercial deployment/licensing decision remains open. Never reuse CI credentials, APP_KEY or demo data.
+Complete invitation/role administration, full audit coverage, private-file quarantine, outbox, monitoring, backups/restore, invitation lifecycle and policy review. Choose production hosting/secrets/mail, HTTPS cookies and origin settings. Pin reviewed image digests, scan dependencies and resolve redistribution/license requirements. Redis 8 images are used unmodified for local development/CI; the commercial deployment/licensing decision remains open. Never reuse CI credentials, APP_KEY or demo data.
 
 ## Existing development databases
 
