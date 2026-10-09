@@ -42,6 +42,7 @@ it("preserves grants outside actor authority and requires a preview before savin
   vi.stubGlobal(
     "fetch",
     vi.fn((path: string, options: RequestInit) => {
+      if (path.endsWith("/permission-bundles")) return json({ data: [{ id: "reader", name: "Reader", permissions: ["company.read", "workforce.read"], delegable: true }] });
       if (path.includes("/access?page=")) return json(state);
       if (path === "/sanctum/csrf-cookie")
         return Promise.resolve(new Response(null, { status: 204 }));
@@ -68,9 +69,8 @@ it("preserves grants outside actor authority and requires a preview before savin
       name: "Read audit (outside your authority)",
     }),
   ).toBeDisabled();
-  await userEvent.click(
-    screen.getByRole("checkbox", { name: "View workforce" }),
-  );
+  await userEvent.selectOptions(screen.getByLabelText("Copy permission bundle"), "reader");
+  expect(screen.getByRole("checkbox", { name: "Read audit (outside your authority)" })).toBeChecked();
   await userEvent.type(
     screen.getByLabelText("Reason — avoid confidential details"),
     "Approved grant",

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, csrf } from "./api";
+import { PermissionBundles, type Bundle } from "./PermissionBundles";
 
 type Member = {
   id: string;
@@ -21,17 +22,16 @@ export function Access({ tenant, base }: { tenant: string; base: string }) {
   const [result, setResult] = useState<AccessPage | null>(null),
     [page, setPage] = useState(1),
     [revision, setRevision] = useState(0);
+  const [bundles, setBundles] = useState<Bundle[]>([]);
   const [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [editing, setEditing] = useState<Member | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    api<AccessPage>(`${base}/access?page=${page}`, {
-      tenant,
-      signal: controller.signal,
-    })
+    Promise.all([api<AccessPage>(`${base}/access?page=${page}`, { tenant, signal: controller.signal }),
+      api<{ data: Bundle[] }>(`${base}/permission-bundles`, { tenant, signal: controller.signal })])
       .then((r) => {
-        if (!controller.signal.aborted) setResult(r);
+        if (!controller.signal.aborted) { setResult(r[0]); setBundles(r[1].data); setError(""); }
       })
       .catch((e) => {
         if (!controller.signal.aborted) {
@@ -62,6 +62,7 @@ export function Access({ tenant, base }: { tenant: string; base: string }) {
               tenant={tenant}
               base={base}
               member={editing}
+              bundles={bundles}
               catalog={result.catalog}
               version={result.access_version}
               onClose={() => {
@@ -79,6 +80,7 @@ export function Access({ tenant, base }: { tenant: string; base: string }) {
             />
           ) : (
             <>
+              <PermissionBundles tenant={tenant} base={base} bundles={bundles} catalog={result.catalog} onSaved={() => { setResult(null); setRevision(n => n + 1); setMessage("Bundle saved. Member permissions are unchanged."); }} />
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -163,6 +165,7 @@ function GrantForm({
   tenant,
   base,
   member,
+  bundles,
   catalog,
   version,
   onClose,
@@ -171,6 +174,7 @@ function GrantForm({
   tenant: string;
   base: string;
   member: Member;
+  bundles: Bundle[];
   catalog: Catalog[];
   version: number;
   onClose: () => void;
@@ -261,6 +265,16 @@ function GrantForm({
         </section>
       ) : (
         <form onSubmit={review}>
+          <label>Copy permission bundle
+            <select value="" onChange={e => {
+              const bundle = bundles.find(b => b.id === e.target.value);
+              if (bundle?.delegable) setSelected(previous => [...new Set([...previous, ...bundle.permissions])]);
+            }}>
+              <option value="">Choose a bundle to add its permissions</option>
+              {bundles.map(b => <option key={b.id} value={b.id} disabled={!b.delegable}>{b.name}{!b.delegable ? " (outside your authority)" : ""}</option>)}
+            </select>
+          </label>
+          <p className="muted">Copying adds permissions to this review and preserves current grants. Review additions and removals before applying.</p>
           <fieldset>
             <legend>Company permissions</legend>
             {catalog.map((c) => (
