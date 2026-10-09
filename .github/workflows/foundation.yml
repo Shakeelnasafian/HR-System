@@ -101,7 +101,7 @@ jobs:
       - run: docker compose build api web
       - run: docker compose up -d postgres redis
       - run: docker compose run --rm migrate
-      - run: docker compose run --rm -e HR_DEMO_PASSWORD migrate php artisan hr:demo --email=admin@example.test --password-env=HR_DEMO_PASSWORD
+      - run: docker compose run --rm -e HR_DEMO_PASSWORD migrate php artisan hr:demo --email=admin@example.test --password-env=HR_DEMO_PASSWORD --colleague
       - run: docker compose up -d api web worker scheduler
       - run: npm ci
         working-directory: frontend

@@ -16,6 +16,8 @@ Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
         ->where('m.status', 'active')->where('t.status', 'active')->orderBy('t.name')
         ->get(['t.id', 't.name', 'm.requires_mfa'])])->header('Cache-Control', 'no-store, private'));
     Route::middleware('tenant')->group(function () {
+        Route::get('companies/{company}/access', [\App\Tenancy\AccessController::class, 'index']);
+        Route::put('companies/{company}/access/{membership}', [\App\Tenancy\AccessController::class, 'replace']);
         Route::prefix('companies/{company}')->controller(\App\Workforce\WorkforceController::class)->group(function () {
             Route::get('capabilities','capabilities');
             Route::get('organization/{kind}','organization');

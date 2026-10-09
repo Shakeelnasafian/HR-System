@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, csrf, type Company } from "./api";
+import { Access } from "./Access";
 
 type Page<T> = {
   data: T[];
@@ -134,6 +135,14 @@ export function CompanyWorkspace({
                 Audit history
               </button>
             )}
+            {permissions.includes("access.manage") && (
+              <button
+                className={tab === "access" ? "" : "secondary"}
+                onClick={() => setTab("access")}
+              >
+                Permissions
+              </button>
+            )}
           </nav>
           {tab === "people" && permissions.includes("workforce.read") ? (
             <People
@@ -151,6 +160,8 @@ export function CompanyWorkspace({
             />
           ) : tab === "audit" && permissions.includes("audit.read") ? (
             <AuditHistory tenant={tenant} base={base} />
+          ) : tab === "access" && permissions.includes("access.manage") ? (
+            <Access tenant={tenant} base={base} />
           ) : (
             <p>
               No access to this module. Choose an available tab or ask your

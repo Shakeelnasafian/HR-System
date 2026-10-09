@@ -1,5 +1,5 @@
 <?php
-namespace App\Workforce;
+namespace App\Audit;
 use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;

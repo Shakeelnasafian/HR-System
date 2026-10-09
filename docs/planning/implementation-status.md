@@ -1,6 +1,6 @@
 # Implementation status — 8 October 2026
 
-The owner authorized continuing the project with the API/SPA foundation. An independent build is underway in the supplied repository; Company Tools source has not been inspected and no reuse claim is made. The API-based React SPA requirement is preserved. The owner merged documentation PR #1 into main and foundation PR #2 into the documentation branch. Draft PR #3 now targets main with the foundation and workforce additions. No production deployment has occurred.
+The owner authorized continuing the project with the API/SPA foundation. An independent build is underway in the supplied repository; Company Tools source has not been inspected and no reuse claim is made. The API-based React SPA requirement is preserved. The owner merged documentation PR #1 into main and foundation PR #2 into the documentation branch. The owner merged PR #3 into main with the foundation and workforce additions. The company permission administration increment follows on its own branch. No production deployment has occurred.
 
 ## Implemented
 
@@ -28,7 +28,7 @@ See [workforce contract](../architecture/workforce-contract.md) for exact routes
 
 ## Boundary and known gaps
 
-This is the first usable foundation slice, not completion of F00–F04 or all V1 security requirements. Company grants now distinguish company read, organization read/write, workforce read/write and audit read. The complete role/action catalog, assignments, invitations, tenant suspension UI and grant administration are not implemented. Membership/service bootstrap tables intentionally sit outside tenant RLS and are accessed through narrow authenticated queries; this exception needs continued review as administration grows.
+This is the first usable foundation slice, not completion of F00–F04 or all V1 security requirements. Company grants now distinguish company read, organization read/write, workforce read/write and audit read. The full V1 role/action catalog, reusable role assignments, invitations and tenant suspension UI remain incomplete. Existing direct company grants now have scoped administration. Membership/service bootstrap tables intentionally sit outside tenant RLS and are accessed through narrow authenticated queries; this exception needs continued review as administration grows.
 
 The code now includes organization, safe employee directory, initial employment lifecycle and company audit endpoints. Document, export, leave and workflow endpoints remain unimplemented. Consequently ISO-10/11 document/export tests, coordinated file restore (ISO-14), representative load/query plans (ISO-15) and the full F04 spike are outstanding. Nested/deadlock/reconnect/pool cases in ISO-12 and broad schema-coverage enforcement also need expansion. No connection pool is configured.
 
@@ -38,7 +38,7 @@ Organization/workforce mutations now write transactionally to an RLS-protected a
 
 - Local frontend production build and three frontend tests passed, including stale tenant-response rejection and MFA gating.
 - CI run [37782639749](https://github.com/Shakeelnasafian/HR-System/actions/runs/37782639749): API job passed 13 tests against PHP 8.5/PostgreSQL 18/Redis 8. It covers missing-context SQL, cross-tenant rows/writes, composite relations, company grants, tenant revocation/suspension, MFA and real queue-worker reuse after failure.
-- CI run [37824764950](https://github.com/Shakeelnasafian/HR-System/actions/runs/37824764950), commit `c5917e7b79a2e8945c733b3bc63522c8682b7070`: 22 API tests / 136 assertions passed, including the two-process activation race, employment lifecycle/history, scope/revocation, same-company references and append-only audit. SPA build/tests passed; local lint passed. Browser evidence is being finalized.
+- CI run [37824764950](https://github.com/Shakeelnasafian/HR-System/actions/runs/37824764950), commit `c5917e7b79a2e8945c733b3bc63522c8682b7070`: 22 API tests / 136 assertions passed, including the two-process activation race, employment lifecycle/history, scope/revocation, same-company references and append-only audit. SPA build/tests passed; local lint passed. The complete Docker browser journey subsequently passed in [run 37826482145](https://github.com/Shakeelnasafian/HR-System/actions/runs/37826482145) at commit `698462e6f882afbdc163e14179ca895183bfeac3`, including MFA, company scope, organization/employee creation, activation/end, audit, mobile overview and logout. Four frontend tests passed, including the asynchronous form regression.
 - A passing suite does not establish all planned isolation experiments or production readiness.
 
 Backend runtime tests were executed in GitHub Actions because this workspace has no PHP/PostgreSQL/Docker. A system package attempt failed before installation; no local PHP or database runtime was installed. Project dependencies are retained; task-only downloads and caches are cleaned after verification.
@@ -48,3 +48,9 @@ Backend runtime tests were executed in GitHub Actions because this workspace has
 Initial locked versions: Laravel 13.35.0, Fortify 1.41.0, Sanctum 4.3.3, Predis 3.6.1. The lockfile was resolved in CI and imported as a reviewed artifact, not handwritten. See `backend/composer.lock` and `frontend/package-lock.json` for the full resolved inventory.
 
 The Laravel skeleton was taken from `laravel/laravel` commit `f4000aeb018fcbf71d4a13e3ee4b80c7e2d45be5`. Fortify source at `f7c3fd787a64ada544353c0423e4589b1626ec75` was read to verify integration; runtime uses the stable lockfile version. Vite scaffolding was created with create-vite 9.2.1. Framework authentication and queue functionality are reused; no custom password/MFA algorithm is included.
+
+## Company permission administration — 9 October 2026
+
+Adds a code-defined permission catalog and company-scoped API/SPA to review and replace an existing member's exact grants. Uses the shared audit module, current database grants, mandatory administrator MFA and a company-wide version/lock. Self-changes and additions/removals beyond the administrator's own company authority are denied. Privileged targets must require MFA. The SPA preserves uneditable grants and shows added/removed permissions before confirmation.
+
+This is administration of existing direct company grants, not invitation provisioning or reusable role bundles. See [access contract](../architecture/access-contract.md). Five frontend tests, production build and lint pass locally. CI run [37887158290](https://github.com/Shakeelnasafian/HR-System/actions/runs/37887158290), commit `3e79716edb2e823fec87911fe0ee3affb06960b3`, passed 29 backend tests / 181 assertions, including two independent processes competing to edit grants. The Docker browser permission flow passed in run [37886899770](https://github.com/Shakeelnasafian/HR-System/actions/runs/37886899770); its desktop screenshot was inspected. Later changes format the SPA, isolate test identities and remove the obsolete unreferenced Workforce audit class; the shared Audit class is the implementation in use. Latest exact-commit checks remain visible on PR #4.
