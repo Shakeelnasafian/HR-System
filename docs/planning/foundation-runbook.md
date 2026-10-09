@@ -4,7 +4,7 @@ This is a local development stack, not a production deployment configuration. Bi
 
 ## Start locally
 
-Prerequisites: Docker Engine with Compose v2. Node/PHP are built in the containers. Checkout `feat/organization-workforce` (draft PR #3 targets `main`). Earlier documentation PR #1 was merged into main; foundation PR #2 was merged into the documentation branch. PR #3 brings the foundation and current workforce increment together.
+Prerequisites: Docker Engine with Compose v2. Node/PHP are built in the containers. The foundation and workforce increment is on `main` after PR #3. Current permission administration work is on `feat/company-permissions`.
 
 1. Copy the root `.env.example` to `.env`. Set independent random values for `POSTGRES_PASSWORD`, `OWNER_DB_PASSWORD` and `APP_DB_PASSWORD`. Set `APP_KEY` to `base64:` followed by a base64 encoding of 32 cryptographically random bytes. These values must remain local. `openssl rand -base64 32` can generate the random material.
 2. Build and initialize:
@@ -60,3 +60,11 @@ Rebuild the application images, run `docker compose run --rm migrate`, then rest
 Existing demo accounts created before workforce grants were added are intentionally not overwritten by `hr:demo`. An owner can grant `organization.read`, `organization.write`, `workforce.read`, `workforce.write` and `audit.read` explicitly to the intended membership/company tuples using the owner connection. Do not grant every tenant member these permissions or expose the owner connection to the application. New synthetic demo accounts include these grants automatically.
 
 Employment end dates are exclusive: enter the day after the final working day. Activation cannot start a future-dated draft or overlap an existing active/ended interval. Rehire creates a new employment for the same employee; it never replaces history. Transfers and entitlement movement are not supported yet.
+
+## Permission administration demo
+
+The owner-run `hr:demo` now grants the synthetic administrator the explicit `access.manage` permission. Pass `--colleague` to add Demo Colleague with company-read-only access and an unknown random password; this extra account exists solely for local permission review demonstrations. No invitation email is sent. Existing demo users are never overwritten.
+
+After signing in with MFA, open a company → Permissions. Select Demo Colleague, adjust permissions, enter a reason, review the preview and apply. You cannot change your own grants. The target must require MFA before receiving privileged permissions. A stale version requires closing/reloading and reviewing the latest grants. Removing every permission removes the target from this company list; reattachment currently requires explicit owner provisioning.
+
+The access migration adds a company version column; no additional runtime database privileges or package dependencies are introduced. The shared audit class moved from Workforce to Audit without changing the audit table or historical records.

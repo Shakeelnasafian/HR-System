@@ -25,6 +25,7 @@ The API-based SPA choice is confirmed. Versions, persistence details and remaini
 | [SPA and API contract](docs/architecture/api-contract.md) | Authentication, tenant context and API conventions |
 | [Isolation validation](docs/architecture/isolation-validation.md) | Threat model and unexecuted RLS/worker spike |
 | [Workforce API contract](docs/architecture/workforce-contract.md) | Implemented organization/workforce routes and lifecycle rules |
+| [Access API contract](docs/architecture/access-contract.md) | Company permission administration, MFA and delegation boundaries |
 | [Module tracker](docs/planning/module-tracker.md) | Delivered increments and remaining V1 work |
 | [Foundation backlog](docs/planning/foundation-backlog.md) | Ordered work, acceptance criteria and approval boundaries |
 | [Review record](docs/planning/review-record.md) | Evidence, completed checks and unresolved decisions |

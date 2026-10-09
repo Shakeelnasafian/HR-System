@@ -119,6 +119,15 @@ test("real cookie login, privileged MFA enrollment and company scope", async ({
   await expect(
     page.getByRole("cell", { name: "employment.end", exact: true }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Permissions", exact: true }).click();
+  await page.getByRole("button", { name: "Edit permissions for Demo Colleague" }).click();
+  await page.getByRole("checkbox", { name: "View employee directory and employment history", exact: true }).check();
+  await page.getByLabel("Reason — avoid confidential details").fill("Synthetic company grant review");
+  await page.getByRole("button", { name: "Review changes", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Permission change preview" })).toBeVisible();
+  await page.getByRole("button", { name: "Apply permissions", exact: true }).click();
+  await expect(page.getByText("Permissions saved.", { exact: true })).toBeVisible();
+  await page.screenshot({path:"test-results/company-permissions.png",fullPage:true});
   await page
     .getByRole("button", { name: "← All companies", exact: true })
     .click();

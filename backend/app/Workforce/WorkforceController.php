@@ -1,6 +1,8 @@
 <?php
 namespace App\Workforce;
 
+use App\Audit\Audit;
+
 use App\Tenancy\CompanyAccess;
 use App\Tenancy\TenantContext;
 use Illuminate\Database\Query\Builder;
