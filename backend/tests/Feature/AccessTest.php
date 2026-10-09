@@ -103,4 +103,27 @@ class AccessTest extends FoundationFixture
         $this->change(['company.read'],2)->assertNotFound();
         $this->assertSame(1,DB::connection('fixture')->table('audit_events')->count());
     }
+
+    public function test_concurrent_grant_edits_cannot_silently_overwrite_one_another(): void
+    {
+        $this->ready(['access.manage','workforce.read','organization.read']);
+        $barrier=storage_path('logs/access-'.Str::uuid()); $processes=[];
+        try {
+            foreach(['workforce.read','organization.read'] as $permission) {
+                $process=new \Symfony\Component\Process\Process([PHP_BINARY,'tests/Support/change-access.php',$this->t1,(string)$this->uid,$this->a,$this->target,json_encode(['company.read',$permission]),$barrier],base_path(),['APP_ENV'=>'testing']);
+                $process->setTimeout(25); $process->start(); $processes[]=$process;
+            }
+            $deadline=microtime(true)+15;
+            while(count(glob($barrier.'.*'))<2 && microtime(true)<$deadline) {usleep(10000);}
+            $this->assertCount(2,glob($barrier.'.*'),'Both writers must reach the barrier.');
+            file_put_contents($barrier,'go'); $statuses=[];
+            foreach($processes as $process) {$process->wait();$this->assertTrue($process->isSuccessful(),$process->getErrorOutput());$statuses[]=trim($process->getOutput());}
+            sort($statuses);$this->assertSame(['200','409'],$statuses);
+            $this->assertSame(2,DB::connection('fixture')->table('companies')->where('id',$this->a)->value('access_version'));
+            $this->assertSame(1,DB::connection('fixture')->table('audit_events')->count());
+        } finally {
+            foreach($processes as $process) {if($process->isRunning()){$process->stop();}}
+            foreach(glob($barrier.'*') as $file) {unlink($file);}
+        }
+    }
 }
