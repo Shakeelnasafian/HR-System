@@ -135,7 +135,14 @@ export function CompanyWorkspace({
                 Audit history
               </button>
             )}
-            {permissions.includes("access.manage") && <button className={tab === "access" ? "" : "secondary"} onClick={() => setTab("access")}>Permissions</button>}
+            {permissions.includes("access.manage") && (
+              <button
+                className={tab === "access" ? "" : "secondary"}
+                onClick={() => setTab("access")}
+              >
+                Permissions
+              </button>
+            )}
           </nav>
           {tab === "people" && permissions.includes("workforce.read") ? (
             <People

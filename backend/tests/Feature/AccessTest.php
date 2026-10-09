@@ -26,6 +26,13 @@ class AccessTest extends FoundationFixture
         User::findOrFail($this->uid)->forceFill(['two_factor_secret'=>encrypt('JBSWY3DPEHPK3PXP'),'two_factor_confirmed_at'=>now()])->save();
         $this->signIn()->withSession(['mfa_user_id'=>$this->uid])->withHeader('X-Tenant-ID',$this->t1);
     }
+    private function asUser(int $id): static
+    {
+        // Separate browser sessions when changing identities inside one test process.
+        auth()->forgetGuards();
+        $this->flushSession();
+        return $this->actingAs(User::findOrFail($id), 'web')->withSession(['mfa_user_id'=>$id])->withHeader('Origin','http://localhost');
+    }
     private function endpoint(?string $company=null, ?string $member=null): string
     {
         return '/api/v1/companies/'.($company??$this->a).'/access'.($member?'/'.$member:'');
@@ -49,12 +56,11 @@ class AccessTest extends FoundationFixture
         $this->ready();
         $this->change(['company.read','workforce.read'])->assertOk()->assertJsonPath('data.access_version',2);
         $this->change(['company.read'],1)->assertConflict();
-        $this->actingAs(User::find($this->targetUser))->withSession(['mfa_user_id'=>$this->targetUser]);
         User::find($this->targetUser)->forceFill(['two_factor_secret'=>encrypt('JBSWY3DPEHPK3PXP'),'two_factor_confirmed_at'=>now()])->save();
-        $this->actingAs(User::find($this->targetUser))->getJson('/api/v1/companies/'.$this->a.'/employees')->assertOk();
-        $this->signIn()->withSession(['mfa_user_id'=>$this->uid]);
+        $this->asUser($this->targetUser)->getJson('/api/v1/companies/'.$this->a.'/employees')->assertOk();
+        $this->asUser($this->uid);
         $this->change(['company.read'],2)->assertOk()->assertJsonPath('data.access_version',3);
-        $this->actingAs(User::find($this->targetUser))->withSession(['mfa_user_id'=>$this->targetUser])->getJson('/api/v1/companies/'.$this->a.'/employees')->assertNotFound();
+        $this->asUser($this->targetUser)->getJson('/api/v1/companies/'.$this->a.'/employees')->assertNotFound();
         $this->assertSame(2,DB::connection('fixture')->table('audit_events')->where('action','membership.company_permissions.updated')->count());
     }
     public function test_self_changes_escalation_and_foreign_scopes_are_denied(): void

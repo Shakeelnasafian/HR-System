@@ -120,14 +120,34 @@ test("real cookie login, privileged MFA enrollment and company scope", async ({
     page.getByRole("cell", { name: "employment.end", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Permissions", exact: true }).click();
-  await page.getByRole("button", { name: "Edit permissions for Demo Colleague" }).click();
-  await page.getByRole("checkbox", { name: "View employee directory and employment history", exact: true }).check();
-  await page.getByLabel("Reason — avoid confidential details").fill("Synthetic company grant review");
-  await page.getByRole("button", { name: "Review changes", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Permission change preview" })).toBeVisible();
-  await page.getByRole("button", { name: "Apply permissions", exact: true }).click();
-  await expect(page.getByText("Permissions saved.", { exact: true })).toBeVisible();
-  await page.screenshot({path:"test-results/company-permissions.png",fullPage:true});
+  await page
+    .getByRole("button", { name: "Edit permissions for Demo Colleague" })
+    .click();
+  await page
+    .getByRole("checkbox", {
+      name: "View employee directory and employment history",
+      exact: true,
+    })
+    .check();
+  await page
+    .getByLabel("Reason — avoid confidential details")
+    .fill("Synthetic company grant review");
+  await page
+    .getByRole("button", { name: "Review changes", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Permission change preview" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Apply permissions", exact: true })
+    .click();
+  await expect(
+    page.getByText("Permissions saved.", { exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/company-permissions.png",
+    fullPage: true,
+  });
   await page
     .getByRole("button", { name: "← All companies", exact: true })
     .click();
@@ -146,10 +166,16 @@ test("real cookie login, privileged MFA enrollment and company scope", async ({
     path: "test-results/workspace-mobile.png",
     fullPage: true,
   });
-  const logoutResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/logout" && response.request().method() === "POST");
+  const logoutResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/logout" &&
+      response.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   expect((await logoutResponse).status()).toBe(204);
-  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Welcome back" }),
+  ).toBeVisible();
   expect(
     (
       await page.request.get("/api/v1/me", {
