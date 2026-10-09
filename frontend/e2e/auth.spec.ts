@@ -146,12 +146,14 @@ test("real cookie login, privileged MFA enrollment and company scope", async ({
     page.getByText("Permissions saved.", { exact: true }),
   ).toBeVisible();
   await page.getByText("Workforce reader", { exact: true }).click();
+  await page.screenshot({ path: "test-results/permission-bundle.png", fullPage: true });
   await page.getByLabel("Archive reason for Workforce reader", { exact: true }).fill("Synthetic template retired");
   await page.getByRole("button", { name: "Archive Workforce reader", exact: true }).click();
   await expect(page.getByText("No active bundles.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Edit permissions for Demo Colleague" }).click();
   await expect(page.getByRole("checkbox", { name: "View employee directory and employment history", exact: true })).toBeChecked();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Edit permissions for Demo Colleague" })).toBeVisible();
   await page.screenshot({
     path: "test-results/company-permissions.png",
     fullPage: true,
