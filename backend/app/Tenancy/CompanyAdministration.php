@@ -1,6 +1,7 @@
 <?php
 namespace App\Tenancy;
 
+use App\Audit\Audit;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,22 @@ final class CompanyAdministration
         // Recheck after the company lock, shared by every grant and bundle mutation.
         abort_unless(in_array('access.manage',$held,true),404);
         return [$row,$actor,$held];
+    }
+    /** Cancels the pending invitations selected by $q (company already locked by the caller), auditing each. */
+    public function cancelInvitations(Builder $q, string $action, array $changes, string $reason): void
+    {
+        $rows=(clone $q)->where('status','pending')->lockForUpdate()->get(['id','company_id']);
+        if($rows->isEmpty()) {return;}
+        DB::table('invitations')->where('tenant_id',app(TenantContext::class)->id())->whereIn('id',$rows->pluck('id'))->update(['status'=>'cancelled',
+            'cancelled_at'=>DB::raw('clock_timestamp()'),'token_hash'=>null,'version'=>DB::raw('version + 1'),'updated_at'=>DB::raw('clock_timestamp()')]);
+        foreach($rows as $row) {Audit::record($row->company_id,$action,$row->id,$changes,$reason);}
+    }
+    /** An inviter who loses access.manage or an invited permission in the company loses those pending invitations too. */
+    public function cancelInvitationsBeyond(string $company, int $inviter, array $remaining, string $reason): void
+    {
+        $q=DB::table('invitations')->where('tenant_id',app(TenantContext::class)->id())->where('company_id',$company)->where('invited_by',$inviter)
+            ->whereRaw("NOT (CAST(? AS jsonb) @> (permissions || '[\"access.manage\"]'::jsonb))",[json_encode(array_values($remaining))]);
+        $this->cancelInvitations($q,'invitation.cancelled',['cause'=>'inviter_access_removed'],$reason);
     }
     public function grants(string $company, string $membership): Builder
     {
