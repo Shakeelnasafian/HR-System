@@ -38,14 +38,12 @@ final class PermissionBundleController
         abort_if((bool)array_diff($data['permissions'],$held),403,'A bundle can contain only permissions you currently hold in this company.');
         if(!in_array('company.read',$data['permissions'],true)) {throw ValidationException::withMessages(['permissions'=>'Company access is required in every bundle.']);}
         abort_if($this->query($company)->where('archived',false)->count()>=100,409,'Archive an unused bundle before adding another.');
-        $name=trim($data['name']); $taken=ValidationException::withMessages(['name'=>'This name is already used by a current or archived bundle. Choose a new name.']);
-        // Names stay reserved after archive; the unique index on lower(name) also covers concurrent inserts.
-        if($this->query($company)->whereRaw('lower(name)=lower(?)',[$name])->exists()) {throw $taken;}
+        $name=trim($data['name']);
+        // Names stay reserved after archive. The company lock serializes writers; the lower(name) index backs it up.
+        if($this->query($company)->whereRaw('lower(name)=lower(?)',[$name])->exists()) {throw ValidationException::withMessages(['name'=>'This name is already used by a current or archived bundle. Choose a new name.']);}
         $id=(string)Str::uuid(); sort($data['permissions']);
-        try {
-            DB::transaction(fn()=>$this->query($company)->insert(['id'=>$id,'tenant_id'=>app(TenantContext::class)->id(),'company_id'=>$company,
-                'name'=>$name,'permissions'=>json_encode($data['permissions']),'created_at'=>now(),'updated_at'=>now()]));
-        } catch(UniqueConstraintViolationException) {throw $taken;}
+        $this->query($company)->insert(['id'=>$id,'tenant_id'=>app(TenantContext::class)->id(),'company_id'=>$company,
+            'name'=>$name,'permissions'=>json_encode($data['permissions']),'created_at'=>now(),'updated_at'=>now()]);
         Audit::record($company,'permission_bundle.created',$id,['permissions'=>$data['permissions']],$data['reason']);
         return response()->json(['data'=>['id'=>$id,'name'=>$name,'permissions'=>$data['permissions']]],201);
     }

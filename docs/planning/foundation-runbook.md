@@ -68,3 +68,5 @@ The owner-run `hr:demo` now grants the synthetic administrator the explicit `acc
 After signing in with MFA, open a company → Permissions. Select Demo Colleague, adjust permissions, enter a reason, review the preview and apply. You cannot change your own grants. The target must require MFA before receiving privileged permissions. A stale version requires closing/reloading and reviewing the latest grants. Removing every permission removes the target from this company list; reattachment currently requires explicit owner provisioning.
 
 The access migration adds a company version column; no additional runtime database privileges or package dependencies are introduced. The shared audit class moved from Workforce to Audit without changing the audit table or historical records.
+
+Databases that ran the PR #5 bundle migration from `feat/company-permissions` receive `2026_10_10_000001_harden_permission_bundle_constraints`, which adds a case-insensitive unique name index and permission/name CHECK constraints. It fails if a company already has bundle names differing only by case; rename one with the owner connection before migrating.

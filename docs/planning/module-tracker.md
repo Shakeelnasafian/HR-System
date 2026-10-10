@@ -4,7 +4,7 @@ User direction: continue the remaining modules, preserving a separate API-based 
 
 | Module | Delivered increment | Remaining obligations |
 |---|---|---|
-| Identity/tenancy | Cookie login, MFA, tenant selector, company read/action scopes, scoped grant administration with delegation limits, immutable company permission templates, restricted runtime RLS and worker context | Invitations, membership lifecycle, live role assignments, recovery/session lifecycle expansion |
+| Identity/tenancy | Cookie login, MFA, tenant selector, company read/action scopes, scoped grant administration with delegation limits, copy-only permission bundles, immutable company permission templates, restricted runtime RLS and worker context | Invitations, membership lifecycle, live role assignments, recovery/session lifecycle expansion |
 | Organization | Departments, locations, positions; create/rename/archive/version checks and same-company references | Company administration, calendars/holidays, settings origin/effective dates |
 | Workforce | Safe identity/directory, draft employment, activate/end/cancel, rehire/history, overlap protection | Full private profiles, self-service changes, manager/effective assignments, terms/contracts, reconciled transfer, CSV dry-run/import |
 | Audit | Transactional organization/workforce mutations, protected append-only table, company viewer | Auth/admin/sensitive reads, export coverage, retention/legal holds and support access |

@@ -2,7 +2,7 @@
 
 This increment reuses direct company grants and the existing transaction, MFA, tenant context and audit infrastructure. It adds no package or role inheritance. Invitation acceptance, tenant membership lifecycle and live role assignments remain separate work.
 
-Every route in this document requires the session, `X-Tenant-ID`, an active tenant/membership, `access.manage` for the route company and confirmed MFA in the current session. PUT also requires CSRF. Unknown or unauthorized company/member references return 404.
+Every route in this document requires the session, `X-Tenant-ID`, an active tenant/membership, `access.manage` for the route company and confirmed MFA in the current session. Mutating routes also require CSRF. Unknown or unauthorized company/member references return 404.
 
 - `GET /api/v1/companies/{company}/access?page=1&per_page=25`: paginated existing company members with id, display name, email, membership status, MFA requirement and exact grants. Additional fields: `access_version`, `actor_membership_id`, and code-defined `catalog` with labels/delegability. No unrelated tenant members or employee profiles are listed.
 - `PUT /api/v1/companies/{company}/access/{membership}`: `{version: integer, reason: string(max 500), permissions: string[]}`. Replaces the target's company permissions; returns membership ID, sorted grants and the new access version. Empty permissions removes all company access. Missing, unknown and duplicate entries fail validation. Nonempty lists must contain `company.read`.
