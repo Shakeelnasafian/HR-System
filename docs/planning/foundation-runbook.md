@@ -4,13 +4,13 @@ This is a local development stack, not a production deployment configuration. Bi
 
 ## Start locally
 
-Prerequisites: Docker Engine with Compose v2. Node/PHP are built in the containers. The foundation and workforce increment is on `main` after PR #3. Current permission administration work is on `feat/company-permissions`.
+Prerequisites: Docker Engine with Compose v2. Node/PHP are built in the containers. Foundation, workforce and permission administration are on `main` (PRs #3 and #4). Permission bundles were merged only into `feat/company-permissions` (PR #5) and are being landed on main through `feat/v1-i0-bundles-housekeeping`.
 
 1. Copy the root `.env.example` to `.env`. Set independent random values for `POSTGRES_PASSWORD`, `OWNER_DB_PASSWORD` and `APP_DB_PASSWORD`. Set `APP_KEY` to `base64:` followed by a base64 encoding of 32 cryptographically random bytes. These values must remain local. `openssl rand -base64 32` can generate the random material.
 2. Build and initialize:
 
 ```sh
-docker compose build api web
+docker compose build api web   # backend services share one image tag
 docker compose up -d postgres redis
 docker compose run --rm migrate
 docker compose run --rm migrate php artisan hr:demo
@@ -68,3 +68,5 @@ The owner-run `hr:demo` now grants the synthetic administrator the explicit `acc
 After signing in with MFA, open a company → Permissions. Select Demo Colleague, adjust permissions, enter a reason, review the preview and apply. You cannot change your own grants. The target must require MFA before receiving privileged permissions. A stale version requires closing/reloading and reviewing the latest grants. Removing every permission removes the target from this company list; reattachment currently requires explicit owner provisioning.
 
 The access migration adds a company version column; no additional runtime database privileges or package dependencies are introduced. The shared audit class moved from Workforce to Audit without changing the audit table or historical records.
+
+Databases that ran the PR #5 bundle migration from `feat/company-permissions` receive `2026_10_10_000001_harden_permission_bundle_constraints`, which adds a case-insensitive unique name index and permission/name CHECK constraints. It fails if a company already has bundle names differing only by case; rename one with the owner connection before migrating.

@@ -154,6 +154,6 @@ final class WorkforceController
     public function audit(Request $r, string $company): JsonResource
     {
         $this->company($company,'audit.read');
-        return $this->page($r,$this->rows('audit_events',$company)->orderByDesc('occurred_at')->orderBy('id')->select(['id','actor_id','action','resource_id','correlation_id','changes','reason','occurred_at']));
+        return $this->page($r,$this->rows('audit_events',$company)->orderByDesc('seq')->select(['id','actor_id','action','resource_id','correlation_id','changes','reason','occurred_at']));
     }
 }

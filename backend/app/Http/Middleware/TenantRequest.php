@@ -11,15 +11,19 @@ final class TenantRequest
         abort_unless(! $request->exists('tenant_id'), 422, 'tenant_id is not writable.');
         $id = $request->header('X-Tenant-ID');
         abort_unless(is_string($id) && $id !== '', 400, 'Tenant context required.');
-        return app(TenantContext::class)->run($id, (int) $request->user()->id, function ($membership) use ($request, $next) {
+        $user = $request->user();
+        $enrolled = $user->two_factor_confirmed_at && $user->two_factor_secret;
+        $verified = $enrolled && (int) $request->session()->get('mfa_user_id') === (int) $user->id;
+        // The membership flag gates the whole tenant; privileged permissions additionally require $verified at use (CompanyAccess).
+        return app(TenantContext::class)->run($id, (int) $user->id, function ($membership) use ($request, $next, $enrolled, $verified) {
             if ($membership->requires_mfa) {
-                abort_unless($request->user()->two_factor_confirmed_at && $request->user()->two_factor_secret, 403, 'MFA enrollment required.');
-                abort_unless((int) $request->session()->get('mfa_user_id') === (int) $request->user()->id, 403, 'MFA login required.');
+                abort_unless($enrolled, 403, 'MFA enrollment required.');
+                abort_unless($verified, 403, 'MFA login required.');
             }
             $response = $next($request);
             if ($response->getStatusCode() >= 400) { throw new \Illuminate\Http\Exceptions\HttpResponseException($response); }
             $response->headers->set('Cache-Control', 'no-store, private');
             return $response;
-        });
+        }, $verified);
     }
 }

@@ -38,11 +38,20 @@ This avoids a session-wide tenant toggle changing another browser tab's target u
 | Sensitive values | Explicitly allowlisted projections; omit denied fields rather than returning placeholders that leak existence |
 | Validation | Reject unknown write fields; whitelist filters, includes and sort keys; no generic arbitrary model filtering |
 
+### Implemented divergences (October 2026)
+
+The implemented routes deliberately differ from this proposal in two places; new endpoints follow the implemented convention until the owner approves a migration:
+
+- Optimistic concurrency uses an integer `version` in the JSON request body. A stale version returns 409 with a reload-and-review message, not 412; a missing version is a 422 validation error, not 428. No ETag/If-Match headers are emitted or required.
+- `Idempotency-Key` is not implemented. Duplicate creates are rejected by scoped unique constraints and versioned transitions cannot apply twice.
+
+Audit history is company-scoped at `GET /api/v1/companies/{company}/audit` rather than `/audit-events`. Error bodies carry Laravel's `message`/`errors`; `code` and `request_id` are not yet emitted. Implemented routes are listed in the [workforce contract](workforce-contract.md) and [access contract](access-contract.md).
+
 Idempotency response retention and request size/rate limits must be set before endpoint release. Durable domain operation uniqueness must survive expiration of the response cache. Never automatically replay a consequential mutation after a 401/419 unless the same idempotency key and its retry semantics are valid. For uncertain outcomes, check operation status and preserve user input.
 
 ## Foundation endpoints to specify and test first
 
-These are proposed contracts, not implemented routes.
+These are proposed contracts. Implemented so far: `/me`, `/me/tenants`, `/context` (without capability hints; per-company hints are at `/companies/{company}/capabilities`), `/companies` and `/companies/{id}`. Company create/update, invitations, membership revoke and tenant-wide audit are not implemented.
 
 | Endpoint | Input / output | Authority |
 |---|---|---|

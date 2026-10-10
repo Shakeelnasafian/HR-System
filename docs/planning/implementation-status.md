@@ -54,3 +54,24 @@ The Laravel skeleton was taken from `laravel/laravel` commit `f4000aeb018fcbf71d
 Adds a code-defined permission catalog and company-scoped API/SPA to review and replace an existing member's exact grants. Uses the shared audit module, current database grants, mandatory administrator MFA and a company-wide version/lock. Self-changes and additions/removals beyond the administrator's own company authority are denied. Privileged targets must require MFA. The SPA preserves uneditable grants and shows added/removed permissions before confirmation.
 
 This is administration of existing direct company grants, not invitation provisioning or reusable role bundles. See [access contract](../architecture/access-contract.md). Five frontend tests, production build and lint pass locally. CI run [37887158290](https://github.com/Shakeelnasafian/HR-System/actions/runs/37887158290), commit `3e79716edb2e823fec87911fe0ee3affb06960b3`, passed 29 backend tests / 181 assertions, including two independent processes competing to edit grants. The Docker browser permission flow passed in run [37886899770](https://github.com/Shakeelnasafian/HR-System/actions/runs/37886899770); its desktop screenshot was inspected. Later changes format the SPA, isolate test identities and remove the obsolete unreferenced Workforce audit class; the shared Audit class is the implementation in use. Latest exact-commit checks remain visible on PR #4.
+
+
+## Company permission templates — 9 October 2026
+
+Draft PR #5 adds immutable, company-scoped permission bundles with creation, additive copy into the existing member permission preview, and idempotent archive. Mandatory administrator MFA, current authority, company locking, forced tenant RLS and transactional audit cover the new endpoints. Templates are not live roles: creation/archive never changes existing member grants. Invitation provisioning and live role assignments remain pending.
+
+CI run [37977086145](https://github.com/Shakeelnasafian/HR-System/actions/runs/37977086145), commit `2383ccff7c54bfb605c22f96e5f5036d8e924d67`, passed 31 backend tests / 209 assertions, 5 frontend tests and the Docker browser journey including create/copy/archive and preserved member access. Local build and lint passed. The following evidence-only update waits for the member-list reload before screenshot capture and records an expanded active template. Latest exact-commit checks remain on PR #5.
+
+## I0 — bundles landed on main and housekeeping — 10 October 2026
+
+The owner approved increments I0–I6. Permission bundles (PR #5) had merged only into the already-merged `feat/company-permissions` branch and never reached main; `feat/v1-i0-bundles-housekeeping` lands them with review fixes: bundle copying requires an explicit Add action with an announced result (a keyboard-scrolled select previously applied every bundle passed), correct archive messages, case-insensitive reserved names enforced by a unique index, CHECK constraints, consistent 422 validation, and a shared `CompanyAdministration` gate replacing public controller internals. `.gitattributes` forces LF for shell scripts so Windows checkouts can initialize PostgreSQL roles. Contracts now record implemented divergences (body version with 409, no idempotency keys).
+
+Verified locally on 10 October 2026: 35 backend tests / 239 assertions (PHP 8.5.1, PostgreSQL 18, Redis 8, restricted runtime role), 7 frontend tests, build, lint, and the Docker Playwright journey. An independent review found no blocking issues; its low findings were fixed. CI results are on the PR.
+
+## I1 — security and audit hardening — 10 October 2026
+
+Privileged permissions now require an MFA-verified session at use, independent of the membership flag, with PostgreSQL triggers preventing privileged grants on memberships without required MFA. A schema test enforces RLS on every tenant table. Requests carry one server-generated correlation ID (`X-Request-ID`); audit events have microsecond timestamps and a monotonic `seq` for stable ordering; authentication events are recorded in an insert-only `security_events` table with keyed hashes instead of attempted emails. See [permissions](../architecture/permissions.md#implemented-enforcement-i1-october-2026).
+
+The review blocked the first version: a migration used `row_security=off`, which fails for the real non-superuser owner although tests (migrated as superuser) passed. The local runner and CI now migrate as a NOSUPERUSER/NOBYPASSRLS owner, which reproduced and then verified the fix. Backend services in `compose.yaml` now share one image tag so `docker compose build api web` cannot leave migrate/worker/scheduler images stale, which had made the browser journey fail.
+
+Verified locally: 49 backend tests / 376 assertions (owner-role migrations), 7 frontend tests, build and Docker Playwright journey. Remaining: sensitive-read audit, security-event review UI, retention, edge rate limits.

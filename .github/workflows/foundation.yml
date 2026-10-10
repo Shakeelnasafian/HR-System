@@ -52,11 +52,19 @@ jobs:
           coverage: none
           tools: composer:v2
       - run: composer install --no-interaction --prefer-dist
+      - name: Provision non-superuser migration owner
+        run: |
+          psql -h 127.0.0.1 -U postgres -d hr_test -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE hr_owner LOGIN PASSWORD 'owner-test-only' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS" \
+            -c "ALTER DATABASE hr_test OWNER TO hr_owner" \
+            -c "GRANT USAGE, CREATE ON SCHEMA public TO hr_owner"
+        env:
+          PGPASSWORD: postgres
       - name: Migrate using separate owner
         run: php artisan migrate --force
         env:
-          DB_USERNAME: postgres
-          DB_PASSWORD: postgres
+          DB_USERNAME: hr_owner
+          DB_PASSWORD: owner-test-only
       - name: Provision restricted runtime role
         run: psql -h 127.0.0.1 -U postgres -d hr_test -f ../infra/postgres/test-runtime.sql
         env:

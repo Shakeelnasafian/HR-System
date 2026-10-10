@@ -49,4 +49,14 @@ abstract class FoundationFixture extends TestCase
         return $this->withHeader('Origin', 'http://localhost');
     }
 
+    /** Privileged grants need a membership that requires MFA (database trigger) and an MFA-verified session (CompanyAccess). */
+    protected function requireMfa(): static
+    {
+        DB::connection('fixture')->table('tenant_memberships')->where('id', $this->membership)->update(['requires_mfa' => true]);
+        $user = User::findOrFail($this->uid);
+        $user->forceFill(['two_factor_secret' => encrypt('JBSWY3DPEHPK3PXP'), 'two_factor_confirmed_at' => now()])->save();
+        auth()->forgetGuards(); // the sanctum guard caches the previously resolved user instance
+        return $this->actingAs($user, 'web')->withSession(['mfa_user_id' => $this->uid]);
+    }
+
 }

@@ -55,7 +55,7 @@ Platform operators can provision/suspend tenants and inspect service health. The
 6. Enforce self-approval and conflict rules, optimistic version and domain invariants inside the action transaction.
 7. Audit sensitive access and mutation. Include actor and subject for on-behalf operations.
 
-A frontend permission response is for UX only. Recheck server-side on every action. When an administrator assigns a role, both its permission set and scope must be within the administrator's grant authority. A role definition change must invalidate affected authorization caches. Do not use a global super-admin bypass for tenant owners.
+A frontend permission response is for UX only. Recheck server-side on every action. Implemented permission bundles are inert copy templates (see the [access contract](access-contract.md)); live role assignments do not exist yet. When an administrator assigns a role, both its permission set and scope must be within the administrator's grant authority. A role definition change must invalidate affected authorization caches. Do not use a global super-admin bypass for tenant owners.
 
 ## Critical examples for acceptance
 
@@ -68,3 +68,13 @@ A frontend permission response is for UX only. Recheck server-side on every acti
 - Reporting totals, search suggestions, document names and export counts respect the same scope as details.
 
 The final grant catalog and field-by-field payload schemas must be versioned alongside each module. This matrix is the starting policy proposal, not a claim that access enforcement exists.
+
+## Implemented enforcement (I1, October 2026)
+
+Every permission except `company.read` and `organization.read` is privileged and can be used only from a session that completed MFA for the current user, regardless of the membership's `requires_mfa` flag. `CompanyAccess::readable()` enforces this centrally: holding the permission without MFA verification returns 403 "MFA login required.", while not holding it still returns 404. Queue jobs and console commands have no session, so privileged checks there fail closed; a future privileged job needs an explicit design. PostgreSQL triggers (SECURITY INVOKER) reject privileged grants on memberships without `requires_mfa` and reject turning `requires_mfa` off while privileged grants exist. The privileged set is defined once in `hr_permission_requires_mfa()`, and a test keeps it equal to `PermissionCatalog`. A schema test fails if any table with `tenant_id` lacks enabled and forced RLS and a tenant policy (the bootstrap table `tenant_memberships` is the only allowlisted exception), or if the runtime role can bypass RLS, owns tables or can rewrite audit history.
+
+## Audit and security events (I1)
+
+Every HTTP request, artisan command and queued job has one server-generated correlation ID, stored on each audit and security event it produces and returned as the `X-Request-ID` response header. Client-supplied request IDs are ignored. `audit_events` stores microsecond database timestamps and a monotonic `seq`; the company audit list orders by `seq`, so events in one transaction keep creation order (`seq` reflects insert order, not commit order, across concurrent transactions). Authentication events (login success/failure, lockout, logout, password reset, MFA enable/confirm/disable, recovery code generation/use and challenge pass/fail) go to the global `security_events` table, because they occur before a tenant is selected. Failed logins store only an HMAC-SHA256 of the lowercased email keyed by the application key, never the attempted email, password or codes. The runtime role may only INSERT into `security_events` and only SELECT/INSERT on `audit_events`. Not yet covered: sensitive-read auditing, an API/UI for security events (owner connection only), throttled two-factor challenges, and retention/export policy for both tables.
+
+Known limits after I1: failed logins for rotating unknown emails each add a `security_events` row (lockouts are recorded once per limiter window); edge rate limiting must be configured at deployment and retention needs an HR/legal decision. Audit events created before I1 have whole-second timestamps, so their backfilled `seq` order within one second follows UUID order. `/companies/{company}/capabilities` lists held permissions even when the session is not MFA-verified; using a privileged one still returns 403.

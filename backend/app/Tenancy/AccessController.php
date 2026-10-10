@@ -12,17 +12,7 @@ use Illuminate\Validation\ValidationException;
 
 final class AccessController
 {
-    private function company(Request $r, string $company, bool $lock=false): object
-    {
-        abort_unless(Str::isUuid($company),404);
-        $q=app(CompanyAccess::class)->readable('access.manage')->where('companies.id',$company);
-        if($lock) {$q->lockForUpdate();}
-        $row=$q->first(); abort_unless($row,404);
-        // Permission administration always requires MFA, even if a membership was misconfigured.
-        abort_unless($r->user()->two_factor_confirmed_at && $r->user()->two_factor_secret
-            && (int)$r->session()->get('mfa_user_id')===(int)$r->user()->id,403,'Verify MFA before managing permissions.');
-        return $row;
-    }
+    public function __construct(private readonly CompanyAdministration $admin) {}
     private function memberships(string $company): Builder
     {
         $tenant=app(TenantContext::class)->id();
@@ -31,21 +21,10 @@ final class AccessController
                 $q->selectRaw('1')->from('company_grants as g')->where('g.tenant_id',$tenant)->where('g.company_id',$company)->whereColumn('g.membership_id','m.id');
             });
     }
-    private function actorMembership(): object
-    {
-        $context=app(TenantContext::class);
-        return DB::table('tenant_memberships')->where('tenant_id',$context->id())->where('user_id',$context->userId())->where('status','active')->firstOrFail();
-    }
-    private function grants(string $company, string $membership): Builder
-    {
-        return DB::table('company_grants')->where('tenant_id',app(TenantContext::class)->id())->where('company_id',$company)->where('membership_id',$membership);
-    }
     public function index(Request $r, string $company)
     {
-        $row=$this->company($r,$company);
+        [$row,$actor,$held]=$this->admin->authorize($r,$company);
         $r->validate(['page'=>'sometimes|integer|min:1','per_page'=>'sometimes|integer|min:1|max:100']);
-        $actor=$this->actorMembership();
-        $held=$this->grants($company,$actor->id)->pluck('permission')->all();
         $page=$this->memberships($company)->orderBy('u.name')->orderBy('m.id')
             ->paginate((int)$r->input('per_page',25),['m.id','m.status','m.requires_mfa','u.name','u.email']);
         $all=DB::table('company_grants')->where('tenant_id',app(TenantContext::class)->id())->where('company_id',$company)
@@ -59,9 +38,7 @@ final class AccessController
     {
         abort_unless(Str::isUuid($membership),404);
         // Serialize all grant mutations in a company, then evaluate the actor's current grants again.
-        $row=$this->company($r,$company,true);
-        $actor=$this->actorMembership();
-        abort_unless($this->grants($company,$actor->id)->where('permission','access.manage')->exists(),404);
+        [$row,$actor,$held]=$this->admin->authorize($r,$company,true);
         abort_if($actor->id===$membership,403,'You cannot change your own permissions. Ask another authorized administrator.');
         $target=$this->memberships($company)->where('m.id',$membership)->first(['m.id','m.status','m.requires_mfa']); abort_unless($target,404);
         $data=$r->validate([
@@ -71,8 +48,7 @@ final class AccessController
         ]);
         abort_unless($row->access_version===$data['version'],409,'Company permissions changed. Reload and review the latest grants.');
         abort_unless($target->status==='active',409,'This membership is inactive. An operator must review it first.');
-        $current=$this->grants($company,$membership)->pluck('permission')->all();
-        $held=$this->grants($company,$actor->id)->pluck('permission')->all();
+        $current=$this->admin->grants($company,$membership)->pluck('permission')->all();
         $desired=$data['permissions'];sort($desired);
         $added=array_values(array_diff($desired,$current)); $removed=array_values(array_diff($current,$desired));
         abort_if(count(array_diff(array_merge($added,$removed),$held))>0,403,'You can change only permissions you currently hold in this company.');
@@ -80,7 +56,7 @@ final class AccessController
         if(PermissionCatalog::requiresMfa($desired) && !$target->requires_mfa) {throw ValidationException::withMessages(['permissions'=>'An operator must require MFA on this membership before privileged access can be assigned.']);}
         if($added || $removed) {
             // Preserve existing grants; only the authorized difference is changed.
-            $this->grants($company,$membership)->whereIn('permission',$removed)->delete();
+            $this->admin->grants($company,$membership)->whereIn('permission',$removed)->delete();
             foreach($added as $permission) {
                 DB::table('company_grants')->insert(['tenant_id'=>app(TenantContext::class)->id(),'company_id'=>$company,'membership_id'=>$membership,'permission'=>$permission]);
             }
