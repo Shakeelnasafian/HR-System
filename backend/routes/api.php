@@ -2,14 +2,20 @@
 
 use App\Http\Controllers\Api\Account\CurrentUserController;
 use App\Http\Controllers\Api\Account\TimezoneController;
+use App\Http\Controllers\Api\Audit\AuditEventController;
 use App\Http\Controllers\Api\Tenancy\ContextController;
+use App\Http\Controllers\Api\Workforce\AssignmentController;
+use App\Http\Controllers\Api\Workforce\DirectReportController;
+use App\Http\Controllers\Api\Workforce\EmployeeController;
+use App\Http\Controllers\Api\Workforce\EmployeeProfileController;
+use App\Http\Controllers\Api\Workforce\EmploymentController;
+use App\Http\Controllers\Api\Workforce\EmploymentTransitionController;
 use App\Organization\CalendarController;
 use App\Organization\CompanySettingsController;
 use App\Tenancy\AccessController;
 use App\Tenancy\InvitationAcceptance;
 use App\Tenancy\InvitationController;
 use App\Tenancy\PermissionBundleController;
-use App\Workforce\AssignmentController;
 use App\Workforce\ProfileController;
 use App\Workforce\WorkforceController;
 use Illuminate\Support\Facades\Route;
@@ -68,20 +74,20 @@ Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
             Route::put('profile-fields', [ProfileController::class, 'configure']);
 
             // Workforce: employees, employments, assignments, reporting lines, private profiles.
-            Route::get('employees', [WorkforceController::class, 'employees']);
-            Route::post('employees', [WorkforceController::class, 'createEmployee']);
-            Route::get('employees/{id}', [WorkforceController::class, 'employee']);
-            Route::post('employees/{id}/employments', [WorkforceController::class, 'rehire']);
-            Route::get('employees/{employee}/profile', [ProfileController::class, 'show']);
-            Route::patch('employees/{employee}/profile', [ProfileController::class, 'update']);
-            Route::patch('employments/{employment}', [AssignmentController::class, 'update']);
+            Route::get('employees', [EmployeeController::class, 'index']);
+            Route::post('employees', [EmployeeController::class, 'store']);
+            Route::get('employees/{id}', [EmployeeController::class, 'show']);
+            Route::post('employees/{id}/employments', [EmploymentController::class, 'store']);
+            Route::get('employees/{employee}/profile', [EmployeeProfileController::class, 'show']);
+            Route::patch('employees/{employee}/profile', [EmployeeProfileController::class, 'update']);
+            Route::patch('employments/{employment}', [EmploymentController::class, 'update']);
             Route::get('employments/{employment}/assignments', [AssignmentController::class, 'index']);
             Route::post('employments/{employment}/assignments', [AssignmentController::class, 'store']);
-            Route::get('employments/{employment}/reports', [AssignmentController::class, 'reports']);
-            Route::post('employments/{id}/{action}', [WorkforceController::class, 'transition'])->whereIn('action', ['activate', 'end', 'cancel']);
+            Route::get('employments/{employment}/reports', [DirectReportController::class, 'index']);
+            Route::post('employments/{id}/{action}', EmploymentTransitionController::class)->whereIn('action', ['activate', 'end', 'cancel']);
 
             // Audit.
-            Route::get('audit', [WorkforceController::class, 'audit']);
+            Route::get('audit', [AuditEventController::class, 'index']);
         });
     });
 });

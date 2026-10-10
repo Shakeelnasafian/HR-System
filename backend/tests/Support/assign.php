@@ -1,9 +1,9 @@
 <?php
 
+use App\Actions\Workforce\AddAssignment;
+use App\Services\Tenancy\CompanyAccess;
 use App\Services\Tenancy\TenantContext;
-use App\Workforce\AssignmentController;
 use Illuminate\Contracts\Console\Kernel;
-use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
@@ -22,8 +22,8 @@ while (! file_exists($barrier)) {
 }
 try {
     app(TenantContext::class)->run($tenant, (int) $actor, function () use ($company, $employment, $manager, $date) {
-        $request = Request::create('/', 'POST', ['version' => 1, 'reason' => 'Synthetic concurrent reporting change', 'effective_from' => $date, 'manager_employment_id' => $manager]);
-        app(AssignmentController::class)->store($request, $company, $employment);
+        app(CompanyAccess::class)->find($company, 'workforce.write');
+        app(AddAssignment::class)->handle($company, $employment, ['version' => 1, 'reason' => 'Synthetic concurrent reporting change', 'effective_from' => $date, 'manager_employment_id' => $manager]);
     }, true); // Stands in for an MFA-verified HTTP request.
     echo '201';
 } catch (ValidationException $e) {
