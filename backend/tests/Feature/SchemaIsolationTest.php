@@ -40,6 +40,11 @@ class SchemaIsolationTest extends TestCase
         foreach(['UPDATE','DELETE','TRUNCATE'] as $privilege) {
             $this->assertFalse(DB::selectOne('SELECT has_table_privilege(current_user, ?, ?) AS v',['audit_events',$privilege])->v,"audit_events must be append-only ($privilege)");
         }
+        foreach(['outbox_events','outbox_attempts'] as $table) {
+            foreach(['DELETE','TRUNCATE'] as $privilege) {
+                $this->assertFalse(DB::selectOne('SELECT has_table_privilege(current_user, ?, ?) AS v',[$table,$privilege])->v,"$table history must not be deletable at runtime ($privilege)");
+            }
+        }
         foreach(['INSERT','UPDATE','DELETE'] as $privilege) {
             $this->assertFalse(DB::selectOne('SELECT has_table_privilege(current_user, ?, ?) AS v',['tenant_memberships',$privilege])->v,"tenant_memberships must stay read-only at runtime ($privilege)");
         }
