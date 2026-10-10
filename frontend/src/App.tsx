@@ -20,6 +20,7 @@ import "./App.css";
 import { CompanyWorkspace } from "./Workforce";
 import { AuthCard } from "./AuthCard";
 import { AcceptInvitation } from "./AcceptInvitation";
+import { ACCEPT_PATH, captureInvitationFragment } from "./pendingInvitation";
 import { loginUrlReturningTo, safeReturnPath } from "./returnPath";
 
 function ErrorMessage({ message }: { message: string }) {
@@ -601,10 +602,10 @@ function SessionApp() {
           {error}
         </div>
       )}
-      {location.pathname === "/invitations/accept" ? (
+      {location.pathname === ACCEPT_PATH ? (
         <AcceptInvitation
           user={user}
-          onSignOut={(returnTo) => void logout(loginUrlReturningTo(returnTo))}
+          onSignOut={() => void logout(loginUrlReturningTo(ACCEPT_PATH))}
         />
       ) : user ? (
         <Workspace user={user} logout={logout} />
@@ -619,6 +620,8 @@ function SessionApp() {
   );
 }
 export default function App() {
+  // Strip the invitation fragment before the router or any request sees it.
+  captureInvitationFragment();
   return (
     <BrowserRouter>
       <SessionApp />

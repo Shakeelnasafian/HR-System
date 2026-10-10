@@ -6,10 +6,20 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api, ApiError, csrf, type User } from "./api";
 import { AuthCard } from "./AuthCard";
 import { loginUrlReturningTo } from "./returnPath";
+import {
+  ACCEPT_PATH,
+  capturedInvitation,
+  clearCapturedInvitation,
+  clearPending,
+  parseInvite,
+  readPending,
+  storePending,
+  type InviteParams,
+} from "./pendingInvitation";
 
 type Preview = {
   tenant_name: string;
@@ -48,40 +58,62 @@ function isInvalidLink(error: unknown) {
   );
 }
 
-/** Public page: works signed out and signed in. Never renders or logs the token. */
+/**
+ * Public page: works signed out and signed in. The emailed link carries the
+ * invitation in the URL fragment (never sent to servers or in Referer). The
+ * fragment is read once into state and stripped from the address bar before any
+ * request. The token is never rendered, logged or put in a URL.
+ */
 export function AcceptInvitation({
   user,
   onSignOut,
 }: {
   user: User | null;
-  onSignOut?: (returnTo: string) => void;
+  onSignOut?: () => void;
 }) {
-  const location = useLocation();
-  const [invite] = useState(() => {
-    const params = new URLSearchParams(location.search);
-    return {
-      tenant: params.get("tenant") ?? "",
-      invitation: params.get("invitation") ?? "",
-      token: params.get("token") ?? "",
-    };
+  const location = useLocation(),
+    navigate = useNavigate();
+  // Fragment only (no query-string fallback); otherwise a pending invitation
+  // saved before "Sign in to accept". Read without side effects; cleanup below.
+  const [captured] = useState(() => {
+    const fromHash =
+      parseInvite(location.hash.replace(/^#/, "")) ?? capturedInvitation();
+    return fromHash
+      ? { invite: fromHash, fromHash: true }
+      : { invite: readPending(), fromHash: false };
   });
-  const complete = !!(invite.tenant && invite.invitation && invite.token);
+  const invite: InviteParams = captured.invite ?? {
+    tenant: "",
+    invitation: "",
+    token: "",
+  };
+  const complete = captured.invite !== null;
+  // Declared before the preview effect so it runs first: strip the fragment and
+  // consume any stored pending invitation before a network request is made.
+  useEffect(() => {
+    if (location.hash || location.search)
+      navigate(location.pathname, { replace: true });
+    clearCapturedInvitation();
+    clearPending();
+    // Run once on mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [step, setStep] = useState<Step>(
     complete ? { kind: "checking" } : { kind: "invalid" },
   );
   const [attempt, setAttempt] = useState(0);
   const heading = useRef<HTMLHeadingElement>(null);
-  const here = location.pathname + location.search;
 
   useEffect(() => {
-    if (!complete) return;
+    const body = captured.invite;
+    if (!body) return;
     const controller = new AbortController();
     (async () => {
       try {
         await csrf();
         const r = await api<{ data: Preview }>("/api/v1/invitations/preview", {
           method: "POST",
-          body: invite,
+          body,
           signal: controller.signal,
         });
         if (!controller.signal.aborted) setStep({ kind: "ready", preview: r.data });
@@ -95,7 +127,8 @@ export function AcceptInvitation({
       }
     })();
     return () => controller.abort();
-  }, [complete, invite, attempt]);
+    // `invite` is derived from state captured once; `captured` is stable.
+  }, [captured, attempt]);
 
   const focusKey =
     step.kind === "ready"
@@ -201,9 +234,13 @@ export function AcceptInvitation({
         <p>
           An account already exists for {preview.email_hint}. Sign in as that
           account to accept this invitation. You will return to this page after
-          signing in.
+          signing in. If you do not, open the link from your email again.
         </p>
-        <Link className="button-link" to={loginUrlReturningTo(here)}>
+        <Link
+          className="button-link"
+          to={loginUrlReturningTo(ACCEPT_PATH)}
+          onClick={() => storePending(invite)}
+        >
           Sign in to accept
         </Link>
       </AuthCard>
@@ -217,7 +254,14 @@ export function AcceptInvitation({
         heading={heading}
         onDone={(r) => finish(r, false)}
         onInvalid={invalid}
-        onSignOut={onSignOut ? () => onSignOut(here) : undefined}
+        onSignOut={
+          onSignOut
+            ? () => {
+                storePending(invite);
+                onSignOut();
+              }
+            : undefined
+        }
       />
     );
   return (
@@ -233,7 +277,6 @@ export function AcceptInvitation({
   );
 }
 
-type InviteParams = { tenant: string; invitation: string; token: string };
 async function accept(body: InviteParams & Record<string, string>) {
   await csrf();
   return (
