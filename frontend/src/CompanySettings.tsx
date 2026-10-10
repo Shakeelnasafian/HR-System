@@ -11,19 +11,6 @@ export type CompanyRecord = {
   version: number;
 };
 
-function timeZones(): string[] | null {
-  const intl = Intl as typeof Intl & {
-    supportedValuesOf?: (key: string) => string[];
-  };
-  try {
-    return typeof intl.supportedValuesOf === "function"
-      ? intl.supportedValuesOf("timeZone")
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 export function CompanySettings({
   tenant,
   base,
@@ -36,13 +23,30 @@ export function CompanySettings({
   const [company, setCompany] = useState<CompanyRecord | null>(null),
     [loadError, setLoadError] = useState(""),
     [revision, setRevision] = useState(0),
-    [name, setName] = useState(""),
-    [timezone, setTimezone] = useState(""),
+    // null = untouched: the field follows the latest loaded record, so a
+    // conflict reload refreshes it while edited fields keep the user's input.
+    [nameInput, setName] = useState<string | null>(null),
+    [timezoneInput, setTimezone] = useState<string | null>(null),
     [reason, setReason] = useState(""),
     [message, setMessage] = useState(""),
-    [initialised, setInitialised] = useState(false);
+    [zones, setZones] = useState<string[] | null>(null),
+    [zonesFailed, setZonesFailed] = useState(false);
   const submit = useSubmit();
-  const zones = timeZones();
+  const name = nameInput ?? company?.name ?? "",
+    timezone = timezoneInput ?? company?.timezone ?? "";
+  useEffect(() => {
+    // The API's list matches the identifiers the server accepts; browser
+    // lists differ (aliases such as Asia/Calcutta), so they are not used.
+    const c = new AbortController();
+    api<{ data: string[] }>("/api/v1/timezones", { signal: c.signal })
+      .then((r) => {
+        if (!c.signal.aborted) setZones(r.data);
+      })
+      .catch(() => {
+        if (!c.signal.aborted) setZonesFailed(true);
+      });
+    return () => c.abort();
+  }, []);
   useEffect(() => {
     const c = new AbortController();
     api<{ data: CompanyRecord }>(base, { tenant, signal: c.signal })
@@ -56,12 +60,6 @@ export function CompanySettings({
       });
     return () => c.abort();
   }, [base, tenant, revision]);
-  // Populate the form once; reloads after a conflict keep the user's input.
-  if (company && !initialised) {
-    setInitialised(true);
-    setName(company.name);
-    setTimezone(company.timezone ?? "");
-  }
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!company) return;
@@ -90,8 +88,8 @@ export function CompanySettings({
     if (ok && holder.saved) {
       const result = holder.saved;
       setCompany(result);
-      setName(result.name);
-      setTimezone(result.timezone ?? "");
+      setName(null);
+      setTimezone(null);
       setReason("");
       setMessage("Company settings saved.");
       onSaved?.(result);
@@ -100,7 +98,7 @@ export function CompanySettings({
   const zoneOptions =
     zones && timezone && !zones.includes(timezone)
       ? [timezone, ...zones]
-      : zones;
+      : (zones ?? (timezone ? [timezone] : []));
   return (
     <section>
       <h3>Company settings</h3>
@@ -115,7 +113,7 @@ export function CompanySettings({
       {company ? (
         <form className="panel module-form" onSubmit={save}>
           <SubmitError
-            error={submit.error}
+            error={submit.summary(["name", "timezone", "reason"])}
             conflict={submit.conflict}
             what="company"
             onReload={() => {
@@ -144,11 +142,12 @@ export function CompanySettings({
           />
           <label>
             Timezone
-            {zoneOptions ? (
+            {!zonesFailed ? (
               <select
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
                 required
+                disabled={!zones}
                 aria-describedby={
                   "company-timezone-note" +
                   (submit.fieldError("timezone")
@@ -157,7 +156,9 @@ export function CompanySettings({
                 }
                 aria-invalid={submit.fieldError("timezone") ? true : undefined}
               >
-                <option value="">Choose a timezone</option>
+                <option value="">
+                  {zones ? "Choose a timezone" : "Loading timezones…"}
+                </option>
                 {zoneOptions.map((z) => (
                   <option key={z} value={z}>
                     {z}

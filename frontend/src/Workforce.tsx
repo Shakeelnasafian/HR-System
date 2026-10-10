@@ -80,10 +80,12 @@ export function CompanyWorkspace({
   tenant,
   company,
   onBack,
+  onRenamed,
 }: {
   tenant: string;
   company: Company;
   onBack: () => void;
+  onRenamed?: (name: string) => void;
 }) {
   const [permissions, setPermissions] = useState<string[] | null>(null),
     [error, setError] = useState(""),
@@ -188,7 +190,10 @@ export function CompanyWorkspace({
             <CompanySettings
               tenant={tenant}
               base={base}
-              onSaved={(c) => setCompanyName(c.name)}
+              onSaved={(c) => {
+                setCompanyName(c.name);
+                onRenamed?.(c.name);
+              }}
             />
           ) : tab === "audit" && permissions.includes("audit.read") ? (
             <AuditHistory tenant={tenant} base={base} />

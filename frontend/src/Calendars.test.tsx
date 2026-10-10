@@ -25,6 +25,8 @@ function stub(handler: Handler) {
   const fetcher = vi.fn((path: string, options: RequestInit) => {
     if (path === "/sanctum/csrf-cookie")
       return Promise.resolve(new Response(null, { status: 204 }));
+    if (path === base && options.method === "GET")
+      return json({ data: { id: "company-a", name: "Company A", code: "A", timezone: "Pacific/Kiritimati", version: 1 } });
     const response = handler(path, options);
     if (response) return response;
     throw new Error(`Unexpected request ${options.method} ${path}`);
@@ -40,7 +42,10 @@ const writes = (fetcher: ReturnType<typeof stub>) =>
       method: options.method,
       body: JSON.parse(options.body as string),
     }));
-const year = new Date().getFullYear();
+// Holidays default to the current year in the company timezone (UTC+14 here).
+const year = Number(
+  new Intl.DateTimeFormat("en-US", { timeZone: "Pacific/Kiritimati", year: "numeric" }).format(new Date()),
+);
 const detail = (version: number, extra: object = {}) => ({
   data: {
     id: "cal",
@@ -82,7 +87,6 @@ it("gates calendar and company settings tabs by capabilities", async () => {
   stub((path) => {
     if (path.endsWith("/capabilities")) return json({ data: held });
     if (path.includes("/calendars?")) return json(list);
-    if (path === base) return json({ data: { id: "company-a", name: "Company A", code: "A", timezone: "UTC", version: 1 } });
   });
   const { unmount } = render(
     <CompanyWorkspace tenant="t" company={{ id: "company-a", name: "Company A", code: "A" }} onBack={vi.fn()} />,
@@ -120,7 +124,10 @@ it("creates a calendar with exactly the chosen working days and no defaults", as
   await userEvent.type(screen.getByLabelText("Pattern effective from"), "2026-01-05");
   await userEvent.type(screen.getByLabelText("Reason — avoid confidential details"), "Initial setup");
   await userEvent.click(screen.getByRole("button", { name: "Create calendar" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Choose at least one working day.");
+  expect(await screen.findByRole("alert")).toHaveTextContent("Check the highlighted fields.");
+  expect(screen.getByRole("group", { name: "Working days" })).toHaveAccessibleDescription(
+    "Choose at least one working day.",
+  );
   expect(writes(fetcher)).toHaveLength(0);
 
   await userEvent.click(days.getByRole("checkbox", { name: "Wednesday" }));
@@ -148,7 +155,7 @@ it("keeps rename input on a 409 conflict and saves against the reloaded version"
   const fetcher = stub((path, options) => {
     if (path.includes("/calendars?")) return json(list);
     if (options.method === "GET" && path === `${base}/calendars/cal?year=${year}`)
-      return json(detail(version));
+      return json(detail(version, { archived: version > 1 }));
     if (options.method === "PATCH" && path === `${base}/calendars/cal`) {
       if (conflict) {
         conflict = false;
@@ -174,11 +181,13 @@ it("keeps rename input on a 409 conflict and saves against the reloaded version"
     expect(fetcher.mock.calls.filter(([p]) => p === `${base}/calendars/cal?year=${year}`)).toHaveLength(2),
   );
   expect(screen.getByLabelText("Calendar name")).toHaveValue("Office week");
+  // Archived elsewhere meanwhile: the untouched checkbox follows the reload.
+  expect(await screen.findByRole("checkbox", { name: /^Archived/ })).toBeChecked();
   await userEvent.click(screen.getByRole("button", { name: "Save calendar" }));
   expect(await screen.findByText("Calendar details saved.")).toBeInTheDocument();
   expect(writes(fetcher).map((w) => w.body)).toEqual([
-    { version: 1, reason: "Clearer name", name: "Office week", archived: false },
-    { version: 2, reason: "Clearer name", name: "Office week", archived: false },
+    { version: 1, reason: "Clearer name", name: "Office week" },
+    { version: 2, reason: "Clearer name", name: "Office week" },
   ]);
   // Pattern history is newest first.
   const rows = screen.getAllByRole("row").map((r) => r.textContent);
@@ -252,7 +261,9 @@ it("adds a pattern and links 422 field errors to the inputs", async () => {
   await userEvent.click(group.getByRole("checkbox", { name: "Saturday" }));
   await userEvent.type(screen.getByLabelText("Reason for new pattern"), "Weekend rota");
   await userEvent.click(screen.getByRole("button", { name: "Add pattern" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("A pattern already starts on this date.");
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("Check the highlighted fields.");
+  expect(alert).not.toHaveTextContent("A pattern already starts on this date.");
   const input = screen.getByLabelText("New pattern effective from");
   expect(input).toHaveAttribute("aria-invalid", "true");
   expect(input).toHaveAccessibleDescription("A pattern already starts on this date.");
@@ -262,4 +273,44 @@ it("adds a pattern and links 422 field errors to the inputs", async () => {
     effective_from: "2026-01-01",
     working_days: [6],
   });
+});
+
+it("hides holiday removal on archived calendars and points to the year of an added holiday", async () => {
+  let archived = false;
+  const holidays = [{ id: "h1", holiday_date: `${year}-01-02`, name: "New Year" }];
+  stub((path, options) => {
+    if (path.includes("/calendars?")) return json(list);
+    if (options.method === "GET" && path === `${base}/calendars/cal?year=${year}`)
+      return json(detail(1, { archived, holidays }));
+    if (options.method === "POST" && path === `${base}/calendars/cal/holidays`)
+      return json({ data: { id: "h2", holiday_date: `${year + 1}-01-01`, name: "Next" } }, 201);
+    if (options.method === "PATCH" && path === `${base}/calendars/cal`) {
+      expect(JSON.parse(options.body as string)).toEqual({ version: 1, reason: "Retired", archived: true });
+      archived = true;
+      return json({ data: {} });
+    }
+  });
+  render(<Calendars tenant="t" base={base} canWrite />);
+  await userEvent.click(await screen.findByRole("button", { name: "Open STD" }));
+  expect(await screen.findByLabelText("Holiday year")).toHaveValue(year);
+  await userEvent.type(screen.getByLabelText("Holiday date"), `${year + 1}-01-01`);
+  await userEvent.type(screen.getByLabelText("Holiday name"), "Next");
+  await userEvent.type(screen.getByLabelText("Reason for holiday"), "Planned");
+  await userEvent.click(screen.getByRole("button", { name: "Add holiday" }));
+  expect(
+    await screen.findByText(
+      `Holiday Next on ${year + 1}-01-01 added for ${year + 1}; switch the holiday year to ${year + 1} to view it.`,
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: `Remove New Year on ${year}-01-02` })).toBeInTheDocument();
+
+  await userEvent.click(screen.getByRole("checkbox", { name: /^Archived/ }));
+  await userEvent.type(screen.getByLabelText("Reason for calendar change"), "Retired");
+  await userEvent.click(screen.getByRole("button", { name: "Save calendar" }));
+  expect(await screen.findByText("Calendar details saved.")).toBeInTheDocument();
+  await waitFor(() =>
+    expect(screen.queryByRole("button", { name: `Remove New Year on ${year}-01-02` })).not.toBeInTheDocument(),
+  );
+  expect(screen.getByRole("cell", { name: "New Year" })).toBeInTheDocument();
+  expect(screen.queryByLabelText("Holiday date")).not.toBeInTheDocument();
 });
