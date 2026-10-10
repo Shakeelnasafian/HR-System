@@ -14,7 +14,7 @@ try {
     app(\App\Tenancy\TenantContext::class)->run($tenant, (int)$actor, function () use ($company, $employment) {
         $request = \Illuminate\Http\Request::create('/', 'POST', ['version'=>1, 'reason'=>'Synthetic concurrent activation']);
         app(\App\Workforce\WorkforceController::class)->transition($request, $company, $employment, 'activate');
-    });
+    }, true); // Stands in for an MFA-verified HTTP request.
     echo '200';
 } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e) {
     echo $e->getStatusCode();

@@ -16,9 +16,7 @@ final class CompanyAdministration
         $q=app(CompanyAccess::class)->readable('access.manage')->where('companies.id',$company);
         if($lock) {$q->lockForUpdate();}
         $row=$q->first(); abort_unless($row,404);
-        // Permission administration always requires MFA, even if a membership was misconfigured.
-        abort_unless($r->user()->two_factor_confirmed_at && $r->user()->two_factor_secret
-            && (int)$r->session()->get('mfa_user_id')===(int)$r->user()->id,403,'Verify MFA before managing permissions.');
+        // access.manage is privileged, so readable() above already required an MFA-verified session.
         $context=app(TenantContext::class);
         $actor=DB::table('tenant_memberships')->where('tenant_id',$context->id())->where('user_id',$context->userId())->where('status','active')->firstOrFail();
         $held=$this->grants($company,$actor->id)->pluck('permission')->all();

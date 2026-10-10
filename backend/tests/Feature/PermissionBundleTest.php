@@ -13,6 +13,7 @@ class PermissionBundleTest extends FoundationFixture
 {
     private function ready(): void
     {
+        $this->requireMfa();
         foreach(['access.manage','workforce.read'] as $permission) {
             DB::connection('fixture')->table('company_grants')->insert(['tenant_id'=>$this->t1,'company_id'=>$this->a,'membership_id'=>$this->membership,'permission'=>$permission]);
         }

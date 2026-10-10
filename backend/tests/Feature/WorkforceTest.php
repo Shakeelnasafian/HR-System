@@ -10,6 +10,7 @@ class WorkforceTest extends FoundationFixture
 {
     private function grant(string $company, array $permissions): void
     {
+        $this->requireMfa();
         foreach($permissions as $permission) { DB::connection('fixture')->table('company_grants')->insert(['tenant_id'=>$this->t1,'company_id'=>$company,'membership_id'=>$this->membership,'permission'=>$permission]); }
     }
     private function ready(): void

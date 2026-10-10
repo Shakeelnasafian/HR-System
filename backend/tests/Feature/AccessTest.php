@@ -17,6 +17,7 @@ class AccessTest extends FoundationFixture
     }
     private function ready(array $permissions=['access.manage','workforce.read']): void
     {
+        $this->requireMfa();
         foreach($permissions as $permission) {$this->grant($this->membership,$this->a,$permission);}
         $db=DB::connection('fixture');
         $this->targetUser=$db->table('users')->insertGetId(['name'=>'Target Member','email'=>'target@example.test','password'=>Hash::make('synthetic-password')]);

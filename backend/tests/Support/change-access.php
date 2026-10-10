@@ -16,7 +16,7 @@ try {
         $request->setLaravelSession(app('session')->driver());
         $request->session()->put('mfa_user_id',(int)$actor);
         app(\App\Tenancy\AccessController::class)->replace($request,$company,$membership);
-    });
+    }, true); // Stands in for an MFA-verified HTTP request.
     echo '200';
 } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e) {
     echo $e->getStatusCode();
