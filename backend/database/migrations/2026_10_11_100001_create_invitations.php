@@ -1,4 +1,5 @@
 <?php
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
@@ -7,8 +8,10 @@ use Illuminate\Support\Facades\DB;
 // They run as the (NOSUPERUSER, NOBYPASSRLS) migration owner, to whom FORCE RLS still applies, so they set app.tenant_id
 // transaction-locally to the validated invitation's tenant or keep the caller's current one, and restore it.
 // search_path ends with pg_temp and relations are schema-qualified so a session temp table cannot shadow them.
-return new class extends Migration {
+return new class extends Migration
+{
     private const FUNCTIONS = ['hr_preview_invitation(uuid, uuid, text)', 'hr_accept_invitation(uuid, uuid, text, bigint, uuid)', 'hr_revoke_membership(uuid, uuid, uuid[])', 'hr_invitation_inviter_qualifies(uuid, uuid, bigint, jsonb)'];
+
     // I1 trigger helpers run inside the definer functions as the owner: pin pg_temp last there too.
     private const HARDENED = ['hr_permission_requires_mfa(text)', 'hr_lock_membership_mfa_policy(uuid)', 'hr_company_grants_require_mfa()', 'hr_memberships_keep_mfa_for_privileged()'];
 
@@ -160,9 +163,12 @@ return new class extends Migration {
             }
         });
     }
+
     public function down(): void
     {
-        foreach (self::FUNCTIONS as $function) { DB::statement("DROP FUNCTION IF EXISTS $function"); }
+        foreach (self::FUNCTIONS as $function) {
+            DB::statement("DROP FUNCTION IF EXISTS $function");
+        }
         DB::statement('DROP TABLE IF EXISTS invitations');
         DB::statement('DROP INDEX IF EXISTS users_email_lower_index');
         DB::statement("UPDATE tenant_memberships SET status = 'archived' WHERE status = 'revoked'");

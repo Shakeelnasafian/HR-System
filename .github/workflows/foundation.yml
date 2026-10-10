@@ -52,6 +52,7 @@ jobs:
           coverage: none
           tools: composer:v2
       - run: composer install --no-interaction --prefer-dist
+      - run: vendor/bin/pint --test
       - name: Provision non-superuser migration owner
         run: |
           psql -h 127.0.0.1 -U postgres -d hr_test -v ON_ERROR_STOP=1 \

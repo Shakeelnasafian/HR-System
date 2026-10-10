@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Tenancy;
+
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
@@ -16,6 +18,7 @@ final class CompanyAccess
         if (PermissionCatalog::requiresMfa([$permission]) && ! $context->mfaVerified()) {
             abort_if($grants(DB::query())->exists(), 403, 'MFA login required.');
         }
+
         return DB::table('companies')->where('companies.tenant_id', $context->id())
             ->whereExists(fn (Builder $q) => $grants($q->selectRaw('1'))->whereColumn('g.company_id', 'companies.id')->whereColumn('g.tenant_id', 'companies.tenant_id'));
     }

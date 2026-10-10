@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Messaging;
+
 use App\Jobs\DeliverOutboxEvent;
 use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
@@ -12,7 +14,8 @@ final class OutboxRelay
     /** @return int number of events claimed and dispatched */
     public function run(?int $batch = null, ?int $maxPerTenant = null): int
     {
-        $batch = max(1, $batch ?? (int) config('outbox.batch')); $max = max(1, $maxPerTenant ?? (int) config('outbox.max_per_tenant'));
+        $batch = max(1, $batch ?? (int) config('outbox.batch'));
+        $max = max(1, $maxPerTenant ?? (int) config('outbox.max_per_tenant'));
         $total = 0;
         foreach (DB::table('tenants')->where('status', 'active')->orderBy('id')->pluck('id') as $tenant) {
             // One tenant's failure (suspended mid-run, queue outage) must not starve the others; claimed-but-undispatched
@@ -25,13 +28,16 @@ final class OutboxRelay
                         DeliverOutboxEvent::dispatch($tenant, $row->event_id, (int) $row->attempt)->onQueue(config('outbox.queue'));
                     }
                     $done += count($claimed);
-                    if (count($claimed) < $batch) { break; }
+                    if (count($claimed) < $batch) {
+                        break;
+                    }
                 }
             } catch (Throwable $e) {
                 report($e);
             }
             $total += $done;
         }
+
         return $total;
     }
 
@@ -63,8 +69,9 @@ final class OutboxRelay
                 [$tenant, $max, $limit, (int) config('outbox.lease_seconds')]),
         ]);
         foreach ($spent as $event) {
-            Log::critical('Outbox event failed permanently.', ['tenant_id'=>$tenant, 'event_id'=>$event->id, 'type'=>$event->type]);
+            Log::critical('Outbox event failed permanently.', ['tenant_id' => $tenant, 'event_id' => $event->id, 'type' => $event->type]);
         }
+
         return $claimed;
     }
 }

@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Providers;
 
 use App\Actions\ResetUserPassword;
@@ -22,8 +23,12 @@ class FortifyServiceProvider extends ServiceProvider
         RateLimiter::for('login', fn (Request $r) => Limit::perMinute(5)->by(strtolower((string) $r->input('email')).'|'.$r->ip())
             ->response(function (Request $r, array $headers) {
                 // Record one lockout per limiter window, not one row per rejected attempt.
-                if (Cache::add('security-lockout:'.sha1(strtolower((string) $r->input('email')).'|'.$r->ip()), 1, 60)) { event(new Lockout($r)); }
-                return response()->json(['message' => 'Too Many Attempts.'], 429, $headers); }));
+                if (Cache::add('security-lockout:'.sha1(strtolower((string) $r->input('email')).'|'.$r->ip()), 1, 60)) {
+                    event(new Lockout($r));
+                }
+
+                return response()->json(['message' => 'Too Many Attempts.'], 429, $headers);
+            }));
         RateLimiter::for('two-factor', fn (Request $r) => Limit::perMinute(5)->by($r->session()->get('login.id').'|'.$r->ip()));
         Event::listen(ValidTwoFactorAuthenticationCodeProvided::class, function ($event): void {
             request()->session()->put('mfa_user_id', $event->user->getAuthIdentifier());

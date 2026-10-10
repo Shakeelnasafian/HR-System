@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Audit;
+
 use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -11,10 +13,10 @@ final class Audit
     {
         $context = app(TenantContext::class);
         DB::table('audit_events')->insert([
-            'id'=>(string) Str::uuid(), 'tenant_id'=>$context->id(), 'company_id'=>$company,
-            'actor_id'=>$context->userId(), 'action'=>$action, 'resource_id'=>$resource,
-            'correlation_id'=>app(RequestId::class)->current(), 'changes'=>json_encode($changes, JSON_THROW_ON_ERROR),
-            'reason'=>$reason,
+            'id' => (string) Str::uuid(), 'tenant_id' => $context->id(), 'company_id' => $company,
+            'actor_id' => $context->userId(), 'action' => $action, 'resource_id' => $resource,
+            'correlation_id' => app(RequestId::class)->current(), 'changes' => json_encode($changes, JSON_THROW_ON_ERROR),
+            'reason' => $reason,
         ]);
     }
 }
