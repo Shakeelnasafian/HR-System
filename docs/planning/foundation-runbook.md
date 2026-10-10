@@ -4,7 +4,7 @@ This is a local development stack, not a production deployment configuration. Bi
 
 ## Start locally
 
-Prerequisites: Docker Engine with Compose v2. Node/PHP are built in the containers. The foundation and workforce increment is on `main` after PR #3. Current permission administration work is on `feat/company-permissions`.
+Prerequisites: Docker Engine with Compose v2. Node/PHP are built in the containers. Foundation, workforce and permission administration are on `main` (PRs #3 and #4). Permission bundles were merged only into `feat/company-permissions` (PR #5) and are being landed on main through `feat/v1-i0-bundles-housekeeping`.
 
 1. Copy the root `.env.example` to `.env`. Set independent random values for `POSTGRES_PASSWORD`, `OWNER_DB_PASSWORD` and `APP_DB_PASSWORD`. Set `APP_KEY` to `base64:` followed by a base64 encoding of 32 cryptographically random bytes. These values must remain local. `openssl rand -base64 32` can generate the random material.
 2. Build and initialize:

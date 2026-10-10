@@ -55,7 +55,7 @@ Platform operators can provision/suspend tenants and inspect service health. The
 6. Enforce self-approval and conflict rules, optimistic version and domain invariants inside the action transaction.
 7. Audit sensitive access and mutation. Include actor and subject for on-behalf operations.
 
-A frontend permission response is for UX only. Recheck server-side on every action. When an administrator assigns a role, both its permission set and scope must be within the administrator's grant authority. A role definition change must invalidate affected authorization caches. Do not use a global super-admin bypass for tenant owners.
+A frontend permission response is for UX only. Recheck server-side on every action. Implemented permission bundles are inert copy templates (see the [access contract](access-contract.md)); live role assignments do not exist yet. When an administrator assigns a role, both its permission set and scope must be within the administrator's grant authority. A role definition change must invalidate affected authorization caches. Do not use a global super-admin bypass for tenant owners.
 
 ## Critical examples for acceptance
 
