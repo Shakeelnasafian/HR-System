@@ -1,9 +1,9 @@
 <?php
 
+use App\Actions\Workforce\TransitionEmployment;
+use App\Services\Tenancy\CompanyAccess;
 use App\Services\Tenancy\TenantContext;
-use App\Workforce\WorkforceController;
 use Illuminate\Contracts\Console\Kernel;
-use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 // Standalone restricted-role process used only by the concurrency integration test.
@@ -21,8 +21,8 @@ while (! file_exists($barrier)) {
 }
 try {
     app(TenantContext::class)->run($tenant, (int) $actor, function () use ($company, $employment) {
-        $request = Request::create('/', 'POST', ['version' => 1, 'reason' => 'Synthetic concurrent activation']);
-        app(WorkforceController::class)->transition($request, $company, $employment, 'activate');
+        $row = app(CompanyAccess::class)->find($company, 'workforce.write');
+        app(TransitionEmployment::class)->handle($row, $employment, 'activate', ['version' => 1, 'reason' => 'Synthetic concurrent activation']);
     }, true); // Stands in for an MFA-verified HTTP request.
     echo '200';
 } catch (HttpExceptionInterface $e) {

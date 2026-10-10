@@ -34,4 +34,18 @@ class EmployeeProfile extends Model
     {
         return $this->belongsTo(Employee::class);
     }
+
+    /** A field as the API shows it; emergency contacts keep only name, relationship and phone, in that order. */
+    public function fieldValue(string $field): mixed
+    {
+        $value = $this->getAttribute($field);
+
+        return $field === 'emergency_contacts' && $value !== null ? self::contacts(json_decode($value, true)) : $value;
+    }
+
+    /** @param  list<array{name: string, relationship: string, phone: string}>  $list */
+    public static function contacts(array $list): array
+    {
+        return array_map(fn ($c) => ['name' => $c['name'], 'relationship' => $c['relationship'], 'phone' => $c['phone']], $list);
+    }
 }
