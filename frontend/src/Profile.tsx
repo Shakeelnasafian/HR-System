@@ -9,6 +9,7 @@ import {
   type EmergencyContact,
   type Profile,
   type ProfileFieldKey,
+  type ProfileSaveResult,
 } from "./workforceApi";
 
 type TextKey = Exclude<ProfileFieldKey, "emergency_contacts">;
@@ -102,9 +103,16 @@ export function ProfilePanel({
                 onReload={() => setRevision((n) => n + 1)}
                 onCancel={() => setEditing(false)}
                 onSaved={(saved) => {
-                  setProfile(saved);
+                  // The write response carries changed keys only, never
+                  // values; the panel requires profile.read, so reload.
+                  setProfile(null);
                   setEditing(false);
-                  setMessage("Private profile saved.");
+                  setRevision((n) => n + 1);
+                  setMessage(
+                    saved.updated.length
+                      ? "Private profile saved."
+                      : "No changes were needed; the profile already had these values.",
+                  );
                 }}
               />
             ) : (
@@ -197,7 +205,7 @@ function ProfileForm({
   tenant: string;
   path: string;
   profile: Profile;
-  onSaved: (p: Profile) => void;
+  onSaved: (result: ProfileSaveResult) => void;
   onCancel: () => void;
   onReload: () => void;
 }) {
@@ -238,15 +246,16 @@ function ProfileForm({
       submit.fail("Change at least one field before saving.");
       return;
     }
-    const holder: { saved?: Profile } = {};
+    const holder: { saved?: ProfileSaveResult } = {};
     const ok = await submit.run(async () => {
-      holder.saved = toProfile(
-        await api<unknown>(path, {
+      holder.saved = (
+        await api<{ data: ProfileSaveResult }>(path, {
           tenant,
           method: "PATCH",
+          // version 0 = no profile stored yet (as returned by GET).
           body: { version: profile.version, reason: reason.trim(), fields },
-        }),
-      );
+        })
+      ).data;
     });
     if (ok && holder.saved) onSaved(holder.saved);
   }

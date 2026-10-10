@@ -123,6 +123,68 @@ test("real cookie login, privileged MFA enrollment and company scope", async ({
     path: "test-results/workforce-desktop.png",
     fullPage: true,
   });
+  // I5a: choose the collected profile fields (nothing is collected by default).
+  await page.getByRole("button", { name: "Company settings", exact: true }).click();
+  const profileFields = page.getByRole("region", { name: "Profile fields collected" });
+  const collected = profileFields.getByRole("group", {
+    name: "Private profile fields this company collects",
+  });
+  for (const field of ["Personal email", "Nationality"])
+    await expect(collected.getByRole("checkbox", { name: field, exact: true })).not.toBeChecked();
+  await collected.getByRole("checkbox", { name: "Personal email", exact: true }).check();
+  await collected.getByRole("checkbox", { name: "Nationality", exact: true }).check();
+  await profileFields
+    .getByLabel("Reason for change — avoid confidential details")
+    .fill("Synthetic data minimisation decision");
+  await profileFields.getByRole("button", { name: "Save profile fields", exact: true }).click();
+  await expect(page.getByText("Profile field settings saved.", { exact: true })).toBeVisible();
+  // Private profile: opened on demand, edited, then read again.
+  await page.getByRole("button", { name: "People", exact: true }).click();
+  await page.getByRole("button", { name: "View P001", exact: true }).click();
+  const profile = page.getByRole("region", { name: "Private profile" });
+  await expect(profile.getByText(/Viewing this profile is recorded/)).toBeVisible();
+  await profile.getByRole("button", { name: "Show private profile", exact: true }).click();
+  await expect(profile.getByText("Personal email", { exact: true })).toBeVisible();
+  await expect(profile.getByText("Date of birth", { exact: true })).toHaveCount(0);
+  await profile.getByRole("button", { name: "Edit private profile", exact: true }).click();
+  await profile.getByLabel("Personal email", { exact: true }).fill("synthetic.person@example.test");
+  await profile.getByLabel("Nationality", { exact: true }).fill("Synthetic");
+  await profile
+    .getByLabel("Reason for change — avoid confidential details")
+    .fill("Synthetic profile fixture");
+  await profile.getByRole("button", { name: "Save private profile", exact: true }).click();
+  await expect(profile.getByText("Private profile saved.", { exact: true })).toBeVisible();
+  await expect(profile.getByText("synthetic.person@example.test", { exact: true })).toBeVisible();
+  await profile.getByRole("button", { name: "Hide private profile", exact: true }).click();
+  await expect(profile.getByText("synthetic.person@example.test", { exact: true })).toHaveCount(0);
+  await profile.getByRole("button", { name: "Show private profile", exact: true }).click();
+  await expect(profile.getByText("synthetic.person@example.test", { exact: true })).toBeVisible();
+  await expect(profile.getByText("Synthetic", { exact: true })).toBeVisible();
+  // Effective-dated assignment within the employment (started 2026-01-01).
+  const employment = page.locator("article.employment").filter({ hasText: "E001" });
+  await employment.getByRole("button", { name: "Change assignment", exact: true }).click();
+  const assignment = page.getByRole("form", { name: "Change assignment: E001" });
+  await assignment.getByLabel("Effective from", { exact: true }).fill("2026-01-15");
+  await assignment
+    .getByRole("combobox", { name: "Department", exact: true })
+    .selectOption({ label: "Engineering" });
+  await assignment
+    .getByRole("combobox", { name: "Working calendar", exact: true })
+    .selectOption({ label: "Synthetic office week" });
+  await assignment
+    .getByLabel("Reason — avoid confidential personal details")
+    .fill("Synthetic team assignment");
+  await assignment.getByRole("button", { name: "Save assignment", exact: true }).click();
+  await expect(page.getByText("Assignment saved.", { exact: true })).toBeVisible();
+  await expect(employment.getByText("2026-01-15", { exact: true })).toBeVisible();
+  await expect(employment.getByText("Synthetic office week", { exact: true })).toBeVisible();
+  await employment
+    .getByRole("button", { name: "Show assignment history for E001", exact: true })
+    .click();
+  const history = employment.getByRole("table", { name: "Assignment history, newest first" });
+  await expect(history.getByRole("cell", { name: "2026-01-15", exact: true })).toBeVisible();
+  await expect(history.getByRole("cell", { name: "Synthetic team assignment", exact: true })).toBeVisible();
+  await expect(history.getByRole("cell", { name: "2026-01-01", exact: true })).toBeVisible();
   await page
     .getByRole("button", { name: "End employment", exact: true })
     .click();

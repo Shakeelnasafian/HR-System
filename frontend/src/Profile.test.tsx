@@ -88,19 +88,30 @@ it("sends only changed enabled fields, nulls for cleared values and the contact 
       return Promise.resolve(new Response(null, { status: 204 }));
     if (path === `${base}/employees/person/profile` && options.method === "GET")
       return json({
-        data: {
-          employee_id: "person",
-          version: 2,
-          fields: {
-            birth_date: "1990-01-02",
-            personal_phone: "+200",
-            emergency_contacts: [{ name: "Old Contact", relationship: "Parent", phone: "+300" }],
-          },
-        },
+        data: saved
+          ? {
+              employee_id: "person",
+              version: 3,
+              fields: {
+                birth_date: "1990-01-02",
+                personal_phone: null,
+                emergency_contacts: [{ name: "New Contact", relationship: "Friend", phone: "+400" }],
+              },
+            }
+          : {
+              employee_id: "person",
+              version: 2,
+              fields: {
+                birth_date: "1990-01-02",
+                personal_phone: "+200",
+                emergency_contacts: [{ name: "Old Contact", relationship: "Parent", phone: "+300" }],
+              },
+            },
       });
     if (path === `${base}/employees/person/profile` && options.method === "PATCH") {
       saved = JSON.parse(options.body as string);
-      return json({ data: { employee_id: "person", version: 3, fields: { birth_date: "1990-01-02", personal_phone: null, emergency_contacts: [{ name: "New Contact", relationship: "Friend", phone: "+400" }] } } });
+      // The write response lists changed keys only, never values.
+      return json({ data: { employee_id: "person", version: 3, updated: ["personal_phone", "emergency_contacts"] } });
     }
     throw new Error(`Unexpected request ${options.method} ${path}`);
   });
@@ -139,6 +150,9 @@ it("sends only changed enabled fields, nulls for cleared values and the contact 
       emergency_contacts: [{ name: "New Contact", relationship: "Friend", phone: "+400" }],
     },
   });
+  // Values are re-read with profile.read after the save.
+  expect(await screen.findByText("New Contact (Friend) · +400")).toBeInTheDocument();
+  expect(fetcher.mock.calls.filter(([p, o]) => p.endsWith("/profile") && o.method === "GET")).toHaveLength(2);
 });
 
 it("associates 422 errors with profile inputs", async () => {
@@ -146,7 +160,9 @@ it("associates 422 errors with profile inputs", async () => {
     if (path === "/sanctum/csrf-cookie")
       return Promise.resolve(new Response(null, { status: 204 }));
     if (options.method === "GET")
-      return json({ data: { employee_id: "person", version: 1, fields: { personal_email: null } } });
+      return json({ data: { employee_id: "person", version: 0, fields: { personal_email: null } } });
+    // No profile row yet: the first save sends version 0.
+    expect(JSON.parse(options.body as string)).toEqual({ version: 0, reason: "Fix", fields: { personal_email: "x@example.test" } });
     return json({ message: "Invalid", errors: { "fields.personal_email": ["Enter a valid email."] } }, 422);
   });
   vi.stubGlobal("fetch", fetcher);
