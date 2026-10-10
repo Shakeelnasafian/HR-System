@@ -1,0 +1,1730 @@
+{
+    "GET /me": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "email": "member@example.test",
+                "id": 1,
+                "mfa_enrolled": true,
+                "mfa_verified": true,
+                "name": "Test Member"
+            }
+        }
+    },
+    "GET /me/tenants": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": [
+                {
+                    "id": "<uuid:1>",
+                    "name": "Tenant 1",
+                    "requires_mfa": true
+                },
+                {
+                    "id": "<uuid:2>",
+                    "name": "Tenant 2",
+                    "requires_mfa": false
+                }
+            ]
+        }
+    },
+    "GET /timezones": {
+        "status": 200,
+        "cache_control": "max-age=86400, private",
+        "body": {
+            "data": [
+                "Africa/Abidjan",
+                "Africa/Accra",
+                "Africa/Addis_Ababa",
+                "<more>"
+            ]
+        }
+    },
+    "GET /context without tenant": {
+        "status": 400,
+        "cache_control": "no-store, private",
+        "body": {
+            "message": "Tenant context required."
+        }
+    },
+    "GET /context": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "companies": [
+                    {
+                        "code": "ONE",
+                        "id": "<uuid:3>",
+                        "name": "Allowed 1"
+                    }
+                ],
+                "tenant_id": "<uuid:1>"
+            }
+        }
+    },
+    "GET /companies": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": [
+                {
+                    "code": "ONE",
+                    "id": "<uuid:3>",
+                    "name": "Allowed 1",
+                    "timezone": "Asia/Dubai"
+                }
+            ],
+            "links": {
+                "first": "http://localhost/api/v1/companies?page=1",
+                "last": "http://localhost/api/v1/companies?page=1",
+                "next": null,
+                "prev": null
+            },
+            "meta": {
+                "current_page": 1,
+                "from": 1,
+                "last_page": 1,
+                "links": [
+                    {
+                        "active": false,
+                        "label": "&laquo; Previous",
+                        "page": null,
+                        "url": null
+                    },
+                    {
+                        "active": true,
+                        "label": "1",
+                        "page": 1,
+                        "url": "http://localhost/api/v1/companies?page=1"
+                    },
+                    {
+                        "active": false,
+                        "label": "Next &raquo;",
+                        "page": null,
+                        "url": null
+                    }
+                ],
+                "path": "http://localhost/api/v1/companies",
+                "per_page": 1,
+                "to": 1,
+                "total": 1
+            }
+        }
+    },
+    "GET /companies invalid": {
+        "status": 422,
+        "cache_control": "no-store, private",
+        "body": {
+            "errors": {
+                "per_page": [
+                    "The per page field must not be greater than 100."
+                ]
+            },
+            "message": "The per page field must not be greater than 100."
+        }
+    },
+    "GET company": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "code": "ONE",
+                "id": "<uuid:3>",
+                "name": "Allowed 1",
+                "timezone": "Asia/Dubai",
+                "version": 1
+            }
+        }
+    },
+    "GET hidden company": {
+        "status": 404,
+        "cache_control": "no-store, private",
+        "body": {
+            "message": ""
+        }
+    },
+    "PATCH company": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "code": "ONE",
+                "id": "<uuid:3>",
+                "name": "Allowed One",
+                "timezone": "Asia/Dubai",
+                "version": 2
+            }
+        }
+    },
+    "PATCH company stale": {
+        "status": 409,
+        "cache_control": "no-store, private",
+        "body": {
+            "message": "This company changed. Reload before saving."
+        }
+    },
+    "PATCH company invalid": {
+        "status": 422,
+        "cache_control": "no-store, private",
+        "body": {
+            "errors": {
+                "name": [
+                    "Change the name or the timezone."
+                ]
+            },
+            "message": "Change the name or the timezone."
+        }
+    },
+    "GET capabilities": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": [
+                "access.manage",
+                "audit.read",
+                "company.manage",
+                "company.read",
+                "organization.read",
+                "organization.write",
+                "profile.read",
+                "profile.write",
+                "workforce.read",
+                "workforce.write"
+            ]
+        }
+    },
+    "POST bundle": {
+        "status": 201,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "id": "<uuid:4>",
+                "name": "Readers",
+                "permissions": [
+                    "company.read",
+                    "workforce.read"
+                ]
+            }
+        }
+    },
+    "POST bundle duplicate": {
+        "status": 422,
+        "cache_control": "no-store, private",
+        "body": {
+            "errors": {
+                "name": [
+                    "This name is already used by a current or archived bundle. Choose a new name."
+                ]
+            },
+            "message": "This name is already used by a current or archived bundle. Choose a new name."
+        }
+    },
+    "GET bundles": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": [
+                {
+                    "delegable": true,
+                    "id": "<uuid:4>",
+                    "name": "Readers",
+                    "permissions": [
+                        "company.read",
+                        "workforce.read"
+                    ]
+                }
+            ]
+        }
+    },
+    "POST bundle archive": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "archived": true,
+                "id": "<uuid:4>"
+            }
+        }
+    },
+    "GET access": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "access_version": 1,
+            "actor_membership_id": "<uuid:5>",
+            "catalog": [
+                {
+                    "delegable": true,
+                    "label": "View company",
+                    "permission": "company.read"
+                },
+                {
+                    "delegable": true,
+                    "label": "Manage company name and timezone",
+                    "permission": "company.manage"
+                },
+                {
+                    "delegable": true,
+                    "label": "View organization",
+                    "permission": "organization.read"
+                },
+                {
+                    "delegable": true,
+                    "label": "Manage departments, locations, positions and employment types",
+                    "permission": "organization.write"
+                },
+                {
+                    "delegable": true,
+                    "label": "View employee directory and employment history",
+                    "permission": "workforce.read"
+                },
+                {
+                    "delegable": true,
+                    "label": "Create employees and change employment",
+                    "permission": "workforce.write"
+                },
+                {
+                    "delegable": true,
+                    "label": "View private employee profiles",
+                    "permission": "profile.read"
+                },
+                {
+                    "delegable": true,
+                    "label": "Edit private employee profiles",
+                    "permission": "profile.write"
+                },
+                {
+                    "delegable": true,
+                    "label": "View company audit history",
+                    "permission": "audit.read"
+                },
+                {
+                    "delegable": true,
+                    "label": "Manage company permissions",
+                    "permission": "access.manage"
+                }
+            ],
+            "data": [
+                {
+                    "email": "colleague@example.test",
+                    "id": "<uuid:6>",
+                    "name": "Synthetic Colleague",
+                    "permissions": [
+                        "company.read"
+                    ],
+                    "requires_mfa": true,
+                    "status": "active"
+                },
+                {
+                    "email": "leaver@example.test",
+                    "id": "<uuid:7>",
+                    "name": "Synthetic Leaver",
+                    "permissions": [
+                        "company.read"
+                    ],
+                    "requires_mfa": true,
+                    "status": "active"
+                }
+            ],
+            "links": {
+                "first": "http://localhost/api/v1/companies/<uuid:3>/access?page=1",
+                "last": "http://localhost/api/v1/companies/<uuid:3>/access?page=2",
+                "next": "http://localhost/api/v1/companies/<uuid:3>/access?page=2",
+                "prev": null
+            },
+            "meta": {
+                "current_page": 1,
+                "from": 1,
+                "last_page": 2,
+                "links": [
+                    {
+                        "active": false,
+                        "label": "&laquo; Previous",
+                        "page": null,
+                        "url": null
+                    },
+                    {
+                        "active": true,
+                        "label": "1",
+                        "page": 1,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/access?page=1"
+                    },
+                    {
+                        "active": false,
+                        "label": "2",
+                        "page": 2,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/access?page=2"
+                    },
+                    {
+                        "active": false,
+                        "label": "Next &raquo;",
+                        "page": 2,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/access?page=2"
+                    }
+                ],
+                "path": "http://localhost/api/v1/companies/<uuid:3>/access",
+                "per_page": 2,
+                "to": 2,
+                "total": 3
+            }
+        }
+    },
+    "PUT access": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "access_version": 2,
+                "membership_id": "<uuid:6>",
+                "permissions": [
+                    "company.read",
+                    "workforce.read"
+                ]
+            }
+        }
+    },
+    "PUT access stale": {
+        "status": 409,
+        "cache_control": "no-store, private",
+        "body": {
+            "message": "Company permissions changed. Reload and review the latest grants."
+        }
+    },
+    "PUT access self": {
+        "status": 403,
+        "cache_control": "no-store, private",
+        "body": {
+            "message": "You cannot change your own permissions. Ask another authorized administrator."
+        }
+    },
+    "POST revoke membership": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "access_version": 3,
+                "membership_id": "<uuid:7>",
+                "status": "revoked"
+            }
+        }
+    },
+    "POST invitation": {
+        "status": 201,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "created_at": "<timestamp:sql>",
+                "email": "invitee@example.test",
+                "expires_at": "<timestamp:sql>",
+                "id": "<uuid:8>",
+                "permissions": [
+                    "company.read"
+                ],
+                "requires_mfa": false,
+                "status": "pending",
+                "version": 1
+            }
+        }
+    },
+    "POST invitation duplicate": {
+        "status": 422,
+        "cache_control": "no-store, private",
+        "body": {
+            "errors": {
+                "email": [
+                    "A pending invitation already exists for this email. Resend or cancel it."
+                ]
+            },
+            "message": "A pending invitation already exists for this email. Resend or cancel it."
+        }
+    },
+    "POST invitation resend": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "created_at": "<timestamp:sql>",
+                "email": "invitee@example.test",
+                "expires_at": "<timestamp:sql>",
+                "id": "<uuid:8>",
+                "permissions": [
+                    "company.read"
+                ],
+                "requires_mfa": false,
+                "status": "pending",
+                "version": 2
+            }
+        }
+    },
+    "POST invitation cancel": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "created_at": "<timestamp:sql>",
+                "email": "second@example.test",
+                "expires_at": "<timestamp:sql>",
+                "id": "<uuid:9>",
+                "permissions": [
+                    "company.read"
+                ],
+                "requires_mfa": false,
+                "status": "cancelled",
+                "version": 2
+            }
+        }
+    },
+    "GET invitations": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": [
+                {
+                    "created_at": "<timestamp:sql>",
+                    "email": "second@example.test",
+                    "expires_at": "<timestamp:sql>",
+                    "id": "<uuid:9>",
+                    "permissions": [
+                        "company.read"
+                    ],
+                    "requires_mfa": false,
+                    "status": "cancelled",
+                    "version": 2
+                },
+                {
+                    "created_at": "<timestamp:sql>",
+                    "email": "invitee@example.test",
+                    "expires_at": "<timestamp:sql>",
+                    "id": "<uuid:8>",
+                    "permissions": [
+                        "company.read"
+                    ],
+                    "requires_mfa": false,
+                    "status": "pending",
+                    "version": 2
+                }
+            ],
+            "links": {
+                "first": "http://localhost/api/v1/companies/<uuid:3>/invitations?page=1",
+                "last": "http://localhost/api/v1/companies/<uuid:3>/invitations?page=1",
+                "next": null,
+                "prev": null
+            },
+            "meta": {
+                "current_page": 1,
+                "from": 1,
+                "last_page": 1,
+                "links": [
+                    {
+                        "active": false,
+                        "label": "&laquo; Previous",
+                        "page": null,
+                        "url": null
+                    },
+                    {
+                        "active": true,
+                        "label": "1",
+                        "page": 1,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/invitations?page=1"
+                    },
+                    {
+                        "active": false,
+                        "label": "Next &raquo;",
+                        "page": null,
+                        "url": null
+                    }
+                ],
+                "path": "http://localhost/api/v1/companies/<uuid:3>/invitations",
+                "per_page": 25,
+                "to": 2,
+                "total": 2
+            }
+        }
+    },
+    "POST invitation preview": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "company_name": "Allowed One",
+                "email_hint": "i***@example.test",
+                "existing_account": false,
+                "expires_at": "<timestamp:iso8601>",
+                "tenant_name": "Tenant 1"
+            }
+        }
+    },
+    "POST invitation preview forged": {
+        "status": 404,
+        "cache_control": "no-store, private",
+        "body": {
+            "message": "This invitation is invalid or has expired."
+        }
+    },
+    "POST invitation accept invalid": {
+        "status": 422,
+        "cache_control": "no-store, private",
+        "body": {
+            "errors": {
+                "password": [
+                    "The password field is required."
+                ]
+            },
+            "message": "The password field is required."
+        }
+    },
+    "POST department": {
+        "status": 201,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "archived": false,
+                "code": "OPS",
+                "id": "<uuid:10>",
+                "name": "Operations",
+                "version": 1
+            }
+        }
+    },
+    "POST department duplicate": {
+        "status": 422,
+        "cache_control": "no-store, private",
+        "body": {
+            "errors": {
+                "code": [
+                    "This code is already in use."
+                ]
+            },
+            "message": "This code is already in use."
+        }
+    },
+    "PATCH department": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "archived": false,
+                "code": "OPS",
+                "id": "<uuid:10>",
+                "name": "Operations Group",
+                "version": 2
+            }
+        }
+    },
+    "GET departments": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": [
+                {
+                    "archived": false,
+                    "code": "OLD",
+                    "id": "<uuid:11>",
+                    "name": "Old",
+                    "version": 1
+                }
+            ],
+            "links": {
+                "first": "http://localhost/api/v1/companies/<uuid:3>/organization/departments?page=1",
+                "last": "http://localhost/api/v1/companies/<uuid:3>/organization/departments?page=2",
+                "next": "http://localhost/api/v1/companies/<uuid:3>/organization/departments?page=2",
+                "prev": null
+            },
+            "meta": {
+                "current_page": 1,
+                "from": 1,
+                "last_page": 2,
+                "links": [
+                    {
+                        "active": false,
+                        "label": "&laquo; Previous",
+                        "page": null,
+                        "url": null
+                    },
+                    {
+                        "active": true,
+                        "label": "1",
+                        "page": 1,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/organization/departments?page=1"
+                    },
+                    {
+                        "active": false,
+                        "label": "2",
+                        "page": 2,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/organization/departments?page=2"
+                    },
+                    {
+                        "active": false,
+                        "label": "Next &raquo;",
+                        "page": 2,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/organization/departments?page=2"
+                    }
+                ],
+                "path": "http://localhost/api/v1/companies/<uuid:3>/organization/departments",
+                "per_page": 1,
+                "to": 1,
+                "total": 2
+            }
+        }
+    },
+    "GET unknown kind": {
+        "status": 404,
+        "cache_control": "no-store, private",
+        "body": {
+            "message": ""
+        }
+    },
+    "GET employment types": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": [
+                {
+                    "archived": false,
+                    "code": "FT",
+                    "id": "<uuid:12>",
+                    "name": "Full time",
+                    "version": 1
+                }
+            ],
+            "links": {
+                "first": "http://localhost/api/v1/companies/<uuid:3>/organization/employment_types?page=1",
+                "last": "http://localhost/api/v1/companies/<uuid:3>/organization/employment_types?page=1",
+                "next": null,
+                "prev": null
+            },
+            "meta": {
+                "current_page": 1,
+                "from": 1,
+                "last_page": 1,
+                "links": [
+                    {
+                        "active": false,
+                        "label": "&laquo; Previous",
+                        "page": null,
+                        "url": null
+                    },
+                    {
+                        "active": true,
+                        "label": "1",
+                        "page": 1,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/organization/employment_types?page=1"
+                    },
+                    {
+                        "active": false,
+                        "label": "Next &raquo;",
+                        "page": null,
+                        "url": null
+                    }
+                ],
+                "path": "http://localhost/api/v1/companies/<uuid:3>/organization/employment_types",
+                "per_page": 25,
+                "to": 1,
+                "total": 1
+            }
+        }
+    },
+    "POST calendar": {
+        "status": 201,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "archived": false,
+                "code": "STD",
+                "id": "<uuid:13>",
+                "name": "Standard",
+                "version": 1
+            }
+        }
+    },
+    "POST calendar invalid": {
+        "status": 422,
+        "cache_control": "no-store, private",
+        "body": {
+            "errors": {
+                "working_days.0": [
+                    "The working_days.0 field has a duplicate value."
+                ],
+                "working_days.1": [
+                    "The working_days.1 field has a duplicate value."
+                ]
+            },
+            "message": "The working_days.0 field has a duplicate value. (and 1 more error)"
+        }
+    },
+    "POST calendar pattern": {
+        "status": 201,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "effective_from": "2026-02-01",
+                "id": "<uuid:14>",
+                "working_days": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                ]
+            }
+        }
+    },
+    "POST calendar holiday": {
+        "status": 201,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "holiday_date": "2026-12-02",
+                "id": "<uuid:15>",
+                "name": "National Day"
+            }
+        }
+    },
+    "DELETE calendar holiday": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "id": "<uuid:15>",
+                "removed": true
+            }
+        }
+    },
+    "PATCH calendar": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "archived": false,
+                "code": "STD",
+                "id": "<uuid:13>",
+                "name": "Standard Week",
+                "version": 6
+            }
+        }
+    },
+    "PATCH calendar stale": {
+        "status": 409,
+        "cache_control": "no-store, private",
+        "body": {
+            "message": "This calendar changed. Reload before saving."
+        }
+    },
+    "GET calendars": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": [
+                {
+                    "archived": false,
+                    "code": "STD",
+                    "current_pattern": {
+                        "effective_from": "2026-02-01",
+                        "working_days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6
+                        ]
+                    },
+                    "id": "<uuid:13>",
+                    "name": "Standard Week",
+                    "version": 6
+                }
+            ]
+        }
+    },
+    "GET calendar": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "archived": false,
+                "code": "STD",
+                "holidays": [
+                    {
+                        "holiday_date": "2026-12-03",
+                        "id": "<uuid:16>",
+                        "name": "Second Day"
+                    }
+                ],
+                "id": "<uuid:13>",
+                "name": "Standard Week",
+                "patterns": [
+                    {
+                        "effective_from": "2026-02-01",
+                        "id": "<uuid:14>",
+                        "working_days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6
+                        ]
+                    },
+                    {
+                        "effective_from": "2026-01-01",
+                        "id": "<uuid:17>",
+                        "working_days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5
+                        ]
+                    }
+                ],
+                "version": 6
+            }
+        }
+    },
+    "POST employee invalid": {
+        "status": 422,
+        "cache_control": "no-store, private",
+        "body": {
+            "errors": {
+                "employee_number": [
+                    "The employee number field format is invalid."
+                ],
+                "legal_name": [
+                    "The legal name field is required."
+                ]
+            },
+            "message": "The employee number field format is invalid. (and 1 more error)"
+        }
+    },
+    "POST employee": {
+        "status": 201,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "employment_id": "<uuid:18>",
+                "id": "<uuid:19>"
+            }
+        }
+    },
+    "GET employees": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": [
+                {
+                    "employee_number": "M1",
+                    "id": "<uuid:19>",
+                    "legal_name": "Synthetic Manager",
+                    "preferred_name": null
+                }
+            ],
+            "links": {
+                "first": "http://localhost/api/v1/companies/<uuid:3>/employees?page=1",
+                "last": "http://localhost/api/v1/companies/<uuid:3>/employees?page=2",
+                "next": "http://localhost/api/v1/companies/<uuid:3>/employees?page=2",
+                "prev": null
+            },
+            "meta": {
+                "current_page": 1,
+                "from": 1,
+                "last_page": 2,
+                "links": [
+                    {
+                        "active": false,
+                        "label": "&laquo; Previous",
+                        "page": null,
+                        "url": null
+                    },
+                    {
+                        "active": true,
+                        "label": "1",
+                        "page": 1,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/employees?page=1"
+                    },
+                    {
+                        "active": false,
+                        "label": "2",
+                        "page": 2,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/employees?page=2"
+                    },
+                    {
+                        "active": false,
+                        "label": "Next &raquo;",
+                        "page": 2,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/employees?page=2"
+                    }
+                ],
+                "path": "http://localhost/api/v1/companies/<uuid:3>/employees",
+                "per_page": 1,
+                "to": 1,
+                "total": 2
+            }
+        }
+    },
+    "GET employees search": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": [
+                {
+                    "employee_number": "R1",
+                    "id": "<uuid:20>",
+                    "legal_name": "Synthetic Report",
+                    "preferred_name": "Rep"
+                }
+            ],
+            "links": {
+                "first": "http://localhost/api/v1/companies/<uuid:3>/employees?page=1",
+                "last": "http://localhost/api/v1/companies/<uuid:3>/employees?page=1",
+                "next": null,
+                "prev": null
+            },
+            "meta": {
+                "current_page": 1,
+                "from": 1,
+                "last_page": 1,
+                "links": [
+                    {
+                        "active": false,
+                        "label": "&laquo; Previous",
+                        "page": null,
+                        "url": null
+                    },
+                    {
+                        "active": true,
+                        "label": "1",
+                        "page": 1,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/employees?page=1"
+                    },
+                    {
+                        "active": false,
+                        "label": "Next &raquo;",
+                        "page": null,
+                        "url": null
+                    }
+                ],
+                "path": "http://localhost/api/v1/companies/<uuid:3>/employees",
+                "per_page": 25,
+                "to": 1,
+                "total": 1
+            }
+        }
+    },
+    "POST activate": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "id": "<uuid:18>",
+                "status": "active",
+                "version": 2
+            }
+        }
+    },
+    "POST activate stale": {
+        "status": 409,
+        "cache_control": "no-store, private",
+        "body": {
+            "message": "This employment changed. Reload before continuing."
+        }
+    },
+    "POST unknown transition": {
+        "status": 404,
+        "cache_control": "no-store, private",
+        "body": {
+            "message": "The route api/v1/companies/<uuid:3>/employments/<uuid:18>/suspend could not be found."
+        }
+    },
+    "POST assignment": {
+        "status": 201,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "calendar": null,
+                "created_at": "<timestamp:sql>",
+                "department": null,
+                "effective_from": "2026-02-01",
+                "employment_id": "<uuid:21>",
+                "employment_type": null,
+                "employment_version": 2,
+                "id": "<uuid:22>",
+                "location": null,
+                "manager": {
+                    "employee_id": "<uuid:19>",
+                    "employee_number": "M1",
+                    "employment_id": "<uuid:18>",
+                    "employment_number": "EM1",
+                    "legal_name": "Synthetic Manager",
+                    "preferred_name": null
+                },
+                "position": null,
+                "reason": "Reorganisation"
+            }
+        }
+    },
+    "POST assignment cycle": {
+        "status": 422,
+        "cache_control": "no-store, private",
+        "body": {
+            "errors": {
+                "manager_employment_id": [
+                    "This reporting line would create a cycle on 2026-03-01."
+                ]
+            },
+            "message": "This reporting line would create a cycle on 2026-03-01."
+        }
+    },
+    "GET assignments": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": [
+                {
+                    "calendar": null,
+                    "created_at": "<timestamp:sql>",
+                    "department": null,
+                    "effective_from": "2026-02-01",
+                    "employment_id": "<uuid:21>",
+                    "employment_type": null,
+                    "id": "<uuid:22>",
+                    "location": null,
+                    "manager": {
+                        "employee_id": "<uuid:19>",
+                        "employee_number": "M1",
+                        "employment_id": "<uuid:18>",
+                        "employment_number": "EM1",
+                        "legal_name": "Synthetic Manager",
+                        "preferred_name": null
+                    },
+                    "position": null,
+                    "reason": "Reorganisation"
+                },
+                {
+                    "calendar": null,
+                    "created_at": "<timestamp:sql>",
+                    "department": null,
+                    "effective_from": "2026-01-01",
+                    "employment_id": "<uuid:21>",
+                    "employment_type": null,
+                    "id": "<uuid:23>",
+                    "location": null,
+                    "manager": null,
+                    "position": null,
+                    "reason": null
+                }
+            ]
+        }
+    },
+    "GET reports": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": [
+                {
+                    "employee_id": "<uuid:20>",
+                    "employee_number": "R1",
+                    "employment_id": "<uuid:21>",
+                    "employment_number": "ER1",
+                    "legal_name": "Synthetic Report",
+                    "preferred_name": "Rep",
+                    "status": "draft"
+                }
+            ],
+            "links": {
+                "first": "http://localhost/api/v1/companies/<uuid:3>/employments/<uuid:18>/reports?page=1",
+                "last": "http://localhost/api/v1/companies/<uuid:3>/employments/<uuid:18>/reports?page=1",
+                "next": null,
+                "prev": null
+            },
+            "meta": {
+                "current_page": 1,
+                "from": 1,
+                "last_page": 1,
+                "links": [
+                    {
+                        "active": false,
+                        "label": "&laquo; Previous",
+                        "page": null,
+                        "url": null
+                    },
+                    {
+                        "active": true,
+                        "label": "1",
+                        "page": 1,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/employments/<uuid:18>/reports?page=1"
+                    },
+                    {
+                        "active": false,
+                        "label": "Next &raquo;",
+                        "page": null,
+                        "url": null
+                    }
+                ],
+                "path": "http://localhost/api/v1/companies/<uuid:3>/employments/<uuid:18>/reports",
+                "per_page": 25,
+                "to": 1,
+                "total": 1
+            }
+        }
+    },
+    "PATCH employment": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "current_assignment": {
+                    "calendar": {
+                        "code": "STD",
+                        "id": "<uuid:13>",
+                        "name": "Standard Week"
+                    },
+                    "created_at": "<timestamp:sql>",
+                    "department": {
+                        "code": "OPS",
+                        "id": "<uuid:10>",
+                        "name": "Operations Group"
+                    },
+                    "effective_from": "2026-01-01",
+                    "employment_id": "<uuid:18>",
+                    "employment_type": {
+                        "code": "FT",
+                        "id": "<uuid:12>",
+                        "name": "Full time"
+                    },
+                    "id": "<uuid:24>",
+                    "location": null,
+                    "manager": null,
+                    "position": null,
+                    "reason": null
+                },
+                "employment_number": "EM1",
+                "end_date": null,
+                "id": "<uuid:18>",
+                "probation_end_date": "2026-07-31",
+                "start_date": "2026-01-01",
+                "status": "active",
+                "version": 3
+            }
+        }
+    },
+    "POST end": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "id": "<uuid:18>",
+                "status": "ended",
+                "version": 4
+            }
+        }
+    },
+    "POST rehire": {
+        "status": 201,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "id": "<uuid:25>"
+            }
+        }
+    },
+    "POST cancel": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "id": "<uuid:26>",
+                "status": "cancelled",
+                "version": 2
+            }
+        }
+    },
+    "GET employee": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "employee": {
+                    "employee_number": "M1",
+                    "id": "<uuid:19>",
+                    "legal_name": "Synthetic Manager",
+                    "preferred_name": null
+                },
+                "employments": [
+                    {
+                        "current_assignment": {
+                            "calendar": null,
+                            "created_at": "<timestamp:sql>",
+                            "department": null,
+                            "effective_from": "2026-06-01",
+                            "employment_id": "<uuid:25>",
+                            "employment_type": null,
+                            "id": "<uuid:27>",
+                            "location": null,
+                            "manager": null,
+                            "position": null,
+                            "reason": null
+                        },
+                        "employment_number": "EM2",
+                        "end_date": null,
+                        "id": "<uuid:25>",
+                        "probation_end_date": null,
+                        "start_date": "2026-06-01",
+                        "status": "draft",
+                        "version": 1
+                    },
+                    {
+                        "current_assignment": {
+                            "calendar": {
+                                "code": "STD",
+                                "id": "<uuid:13>",
+                                "name": "Standard Week"
+                            },
+                            "created_at": "<timestamp:sql>",
+                            "department": {
+                                "code": "OPS",
+                                "id": "<uuid:10>",
+                                "name": "Operations Group"
+                            },
+                            "effective_from": "2026-01-01",
+                            "employment_id": "<uuid:18>",
+                            "employment_type": {
+                                "code": "FT",
+                                "id": "<uuid:12>",
+                                "name": "Full time"
+                            },
+                            "id": "<uuid:24>",
+                            "location": null,
+                            "manager": null,
+                            "position": null,
+                            "reason": null
+                        },
+                        "employment_number": "EM1",
+                        "end_date": "2026-05-01",
+                        "id": "<uuid:18>",
+                        "probation_end_date": "2026-07-31",
+                        "start_date": "2026-01-01",
+                        "status": "ended",
+                        "version": 4
+                    }
+                ]
+            }
+        }
+    },
+    "GET employee unknown": {
+        "status": 404,
+        "cache_control": "no-store, private",
+        "body": {
+            "message": ""
+        }
+    },
+    "GET profile fields": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "available": [
+                    "birth_date",
+                    "nationality",
+                    "personal_email",
+                    "personal_phone",
+                    "address",
+                    "emergency_contacts"
+                ],
+                "enabled": [],
+                "version": 1
+            }
+        }
+    },
+    "PUT profile fields": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "available": [
+                    "birth_date",
+                    "nationality",
+                    "personal_email",
+                    "personal_phone",
+                    "address",
+                    "emergency_contacts"
+                ],
+                "enabled": [
+                    "birth_date",
+                    "address",
+                    "emergency_contacts"
+                ],
+                "version": 2
+            }
+        }
+    },
+    "PATCH profile": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "employee_id": "<uuid:20>",
+                "updated": [
+                    "birth_date",
+                    "emergency_contacts"
+                ],
+                "version": 1
+            }
+        }
+    },
+    "PATCH profile foreign field": {
+        "status": 422,
+        "cache_control": "no-store, private",
+        "body": {
+            "errors": {
+                "fields.nationality": [
+                    "This field is not collected by this company."
+                ]
+            },
+            "message": "This field is not collected by this company."
+        }
+    },
+    "GET profile": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "employee_id": "<uuid:20>",
+                "fields": {
+                    "address": null,
+                    "birth_date": "1990-05-17",
+                    "emergency_contacts": [
+                        {
+                            "name": "Synthetic Contact",
+                            "phone": "555 0100",
+                            "relationship": "Sibling"
+                        }
+                    ]
+                },
+                "version": 1
+            }
+        }
+    },
+    "GET profile with no fields": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "employee_id": "<uuid:28>",
+                "fields": {},
+                "version": 0
+            }
+        }
+    },
+    "GET audit": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": [
+                {
+                    "action": "profile.viewed",
+                    "actor_id": 1,
+                    "changes": "{\"fields\": []}",
+                    "correlation_id": "<uuid:29>",
+                    "id": "<uuid:30>",
+                    "occurred_at": "<timestamp:sql>",
+                    "reason": null,
+                    "resource_id": "<uuid:28>"
+                },
+                {
+                    "action": "profile_fields.updated",
+                    "actor_id": 1,
+                    "changes": "{\"enabled\": [], \"disabled\": [\"birth_date\", \"address\", \"emergency_contacts\"]}",
+                    "correlation_id": "<uuid:31>",
+                    "id": "<uuid:32>",
+                    "occurred_at": "<timestamp:sql>",
+                    "reason": "Stop",
+                    "resource_id": "<uuid:3>"
+                },
+                {
+                    "action": "employment.created",
+                    "actor_id": 1,
+                    "changes": "{\"fields\": [\"employment_number\", \"start_date\"], \"status\": \"draft\", \"employee_id\": \"<uuid:28>\", \"assignment_id\": \"<uuid:33>\"}",
+                    "correlation_id": "<uuid:34>",
+                    "id": "<uuid:35>",
+                    "occurred_at": "<timestamp:sql>",
+                    "reason": null,
+                    "resource_id": "<uuid:36>"
+                }
+            ],
+            "links": {
+                "first": "http://localhost/api/v1/companies/<uuid:3>/audit?page=1",
+                "last": "http://localhost/api/v1/companies/<uuid:3>/audit?page=13",
+                "next": "http://localhost/api/v1/companies/<uuid:3>/audit?page=2",
+                "prev": null
+            },
+            "meta": {
+                "current_page": 1,
+                "from": 1,
+                "last_page": 13,
+                "links": [
+                    {
+                        "active": false,
+                        "label": "&laquo; Previous",
+                        "page": null,
+                        "url": null
+                    },
+                    {
+                        "active": true,
+                        "label": "1",
+                        "page": 1,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=1"
+                    },
+                    {
+                        "active": false,
+                        "label": "2",
+                        "page": 2,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=2"
+                    },
+                    {
+                        "active": false,
+                        "label": "3",
+                        "page": 3,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=3"
+                    },
+                    {
+                        "active": false,
+                        "label": "4",
+                        "page": 4,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=4"
+                    },
+                    {
+                        "active": false,
+                        "label": "5",
+                        "page": 5,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=5"
+                    },
+                    {
+                        "active": false,
+                        "label": "6",
+                        "page": 6,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=6"
+                    },
+                    {
+                        "active": false,
+                        "label": "7",
+                        "page": 7,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=7"
+                    },
+                    {
+                        "active": false,
+                        "label": "8",
+                        "page": 8,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=8"
+                    },
+                    {
+                        "active": false,
+                        "label": "9",
+                        "page": 9,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=9"
+                    },
+                    {
+                        "active": false,
+                        "label": "10",
+                        "page": 10,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=10"
+                    },
+                    {
+                        "active": false,
+                        "label": "11",
+                        "page": 11,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=11"
+                    },
+                    {
+                        "active": false,
+                        "label": "12",
+                        "page": 12,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=12"
+                    },
+                    {
+                        "active": false,
+                        "label": "13",
+                        "page": 13,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=13"
+                    },
+                    {
+                        "active": false,
+                        "label": "Next &raquo;",
+                        "page": 2,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=2"
+                    }
+                ],
+                "path": "http://localhost/api/v1/companies/<uuid:3>/audit",
+                "per_page": 3,
+                "to": 3,
+                "total": 37
+            }
+        }
+    },
+    "GET audit page 2": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": [
+                {
+                    "action": "employee.created",
+                    "actor_id": 1,
+                    "changes": "{\"fields\": [\"employee_number\", \"legal_name\"]}",
+                    "correlation_id": "<uuid:34>",
+                    "id": "<uuid:37>",
+                    "occurred_at": "<timestamp:sql>",
+                    "reason": null,
+                    "resource_id": "<uuid:28>"
+                },
+                {
+                    "action": "profile.viewed",
+                    "actor_id": 1,
+                    "changes": "{\"fields\": [\"birth_date\", \"address\", \"emergency_contacts\"]}",
+                    "correlation_id": "<uuid:38>",
+                    "id": "<uuid:39>",
+                    "occurred_at": "<timestamp:sql>",
+                    "reason": null,
+                    "resource_id": "<uuid:20>"
+                },
+                {
+                    "action": "profile.updated",
+                    "actor_id": 1,
+                    "changes": "{\"fields\": [\"birth_date\", \"emergency_contacts\"], \"submitted\": [\"birth_date\", \"emergency_contacts\"]}",
+                    "correlation_id": "<uuid:40>",
+                    "id": "<uuid:41>",
+                    "occurred_at": "<timestamp:sql>",
+                    "reason": "Onboarding",
+                    "resource_id": "<uuid:20>"
+                }
+            ],
+            "links": {
+                "first": "http://localhost/api/v1/companies/<uuid:3>/audit?page=1",
+                "last": "http://localhost/api/v1/companies/<uuid:3>/audit?page=13",
+                "next": "http://localhost/api/v1/companies/<uuid:3>/audit?page=3",
+                "prev": "http://localhost/api/v1/companies/<uuid:3>/audit?page=1"
+            },
+            "meta": {
+                "current_page": 2,
+                "from": 4,
+                "last_page": 13,
+                "links": [
+                    {
+                        "active": false,
+                        "label": "&laquo; Previous",
+                        "page": 1,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=1"
+                    },
+                    {
+                        "active": false,
+                        "label": "1",
+                        "page": 1,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=1"
+                    },
+                    {
+                        "active": true,
+                        "label": "2",
+                        "page": 2,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=2"
+                    },
+                    {
+                        "active": false,
+                        "label": "3",
+                        "page": 3,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=3"
+                    },
+                    {
+                        "active": false,
+                        "label": "4",
+                        "page": 4,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=4"
+                    },
+                    {
+                        "active": false,
+                        "label": "5",
+                        "page": 5,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=5"
+                    },
+                    {
+                        "active": false,
+                        "label": "6",
+                        "page": 6,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=6"
+                    },
+                    {
+                        "active": false,
+                        "label": "7",
+                        "page": 7,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=7"
+                    },
+                    {
+                        "active": false,
+                        "label": "8",
+                        "page": 8,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=8"
+                    },
+                    {
+                        "active": false,
+                        "label": "9",
+                        "page": 9,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=9"
+                    },
+                    {
+                        "active": false,
+                        "label": "10",
+                        "page": 10,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=10"
+                    },
+                    {
+                        "active": false,
+                        "label": "11",
+                        "page": 11,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=11"
+                    },
+                    {
+                        "active": false,
+                        "label": "12",
+                        "page": 12,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=12"
+                    },
+                    {
+                        "active": false,
+                        "label": "13",
+                        "page": 13,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=13"
+                    },
+                    {
+                        "active": false,
+                        "label": "Next &raquo;",
+                        "page": 3,
+                        "url": "http://localhost/api/v1/companies/<uuid:3>/audit?page=3"
+                    }
+                ],
+                "path": "http://localhost/api/v1/companies/<uuid:3>/audit",
+                "per_page": 3,
+                "to": 6,
+                "total": 37
+            }
+        }
+    },
+    "POST invitation accept": {
+        "status": 200,
+        "cache_control": "no-store, private",
+        "body": {
+            "data": {
+                "company_id": "<uuid:3>",
+                "requires_mfa": false,
+                "tenant_id": "<uuid:1>"
+            }
+        }
+    },
+    "POST invitation accept reused": {
+        "status": 404,
+        "cache_control": "no-store, private",
+        "body": {
+            "message": "This invitation is invalid or has expired."
+        }
+    }
+}
