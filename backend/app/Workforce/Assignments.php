@@ -2,8 +2,8 @@
 
 namespace App\Workforce;
 
-use App\Tenancy\ScopesCompany;
-use App\Tenancy\TenantContext;
+use App\Services\Tenancy\ScopesCompany;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;

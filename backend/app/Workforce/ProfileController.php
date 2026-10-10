@@ -2,9 +2,9 @@
 
 namespace App\Workforce;
 
-use App\Audit\Audit;
-use App\Tenancy\CompanyAccess;
-use App\Tenancy\ScopesCompany;
+use App\Services\Audit\Audit;
+use App\Services\Tenancy\CompanyAccess;
+use App\Services\Tenancy\ScopesCompany;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -135,7 +135,7 @@ final class ProfileController
             DB::table('employee_profiles')->insert($store + ['tenant_id' => $this->tenant(), 'employee_id' => $employee, 'version' => ++$version, 'created_at' => now(), 'updated_at' => now()]);
         }
         Audit::record($company, 'profile.updated', $employee, ['fields' => $changed, 'submitted' => $submitted], $r->input('reason'));
-        $reader = app(CompanyAccess::class)->readable('profile.read')->where('companies.id',$company)->exists();
+        $reader = app(CompanyAccess::class)->readable('profile.read')->where('companies.id', $company)->exists();
 
         return ['data' => ['employee_id' => $employee, 'version' => $version, 'updated' => $reader ? $changed : $submitted]];
     }

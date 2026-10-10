@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use App\Tenancy\TenantContext;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -147,8 +147,8 @@ class FoundationTest extends FoundationFixture
             dispatch((new TenantProbe($this->t1, $this->uid, $path, false))->onQueue($queue));
             DB::connection('fixture')->table('tenant_memberships')->where('id', $this->membership)->update(['status' => 'suspended']);
             $process->mustRun();
-            $this->assertCount(5,file($path,FILE_IGNORE_NEW_LINES));
-            $this->assertSame(2,DB::table('failed_jobs')->count());
+            $this->assertCount(5, file($path, FILE_IGNORE_NEW_LINES));
+            $this->assertSame(2, DB::table('failed_jobs')->count());
         } finally {
             if (file_exists($path)) {
                 unlink($path);

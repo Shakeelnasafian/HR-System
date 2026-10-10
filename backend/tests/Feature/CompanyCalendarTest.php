@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Tenancy\TenantContext;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -265,7 +265,7 @@ class CompanyCalendarTest extends FoundationFixture
         ];
         foreach ($writes as $label => $write) {
             try {
-                $context->run($this->t1,$this->uid,$write);
+                $context->run($this->t1, $this->uid, $write);
                 $this->fail("Expected the database to reject: $label");
             } catch (QueryException) {
                 $this->addToAssertionCount(1);

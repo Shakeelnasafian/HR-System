@@ -3,11 +3,11 @@
 namespace Tests\Feature;
 
 use App\Jobs\DeliverOutboxEvent;
-use App\Messaging\Outbox;
-use App\Messaging\OutboxDelivery;
-use App\Messaging\OutboxRelay;
-use App\Tenancy\CompanyAccess;
-use App\Tenancy\TenantContext;
+use App\Services\Messaging\Outbox;
+use App\Services\Messaging\OutboxDelivery;
+use App\Services\Messaging\OutboxRelay;
+use App\Services\Tenancy\CompanyAccess;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;

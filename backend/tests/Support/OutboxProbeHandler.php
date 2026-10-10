@@ -2,8 +2,8 @@
 
 namespace Tests\Support;
 
-use App\Messaging\OutboxHandler;
-use App\Tenancy\TenantContext;
+use App\Services\Messaging\OutboxHandler;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 
 /** Test-only handler. payload: mode (ok|throw|cancel|crash-once), path (JSONL file standing in for the receiver). */

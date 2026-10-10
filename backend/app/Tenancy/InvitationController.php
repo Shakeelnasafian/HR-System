@@ -2,9 +2,12 @@
 
 namespace App\Tenancy;
 
-use App\Audit\Audit;
 use App\Http\Resources\ProjectedRow;
-use App\Messaging\Outbox;
+use App\Services\Audit\Audit;
+use App\Services\Messaging\Outbox;
+use App\Services\Tenancy\CompanyAdministration;
+use App\Services\Tenancy\PermissionCatalog;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -132,9 +135,9 @@ final class InvitationController
 
     public function cancel(Request $r, string $company, string $invitation): array
     {
-        [,$data] = $this->pending($r,$company,$invitation);
-        $this->admin->cancelInvitations($this->query($company)->where('id',$invitation),'invitation.cancelled',[],$data['reason']);
+        [,$data] = $this->pending($r, $company, $invitation);
+        $this->admin->cancelInvitations($this->query($company)->where('id', $invitation), 'invitation.cancelled', [], $data['reason']);
 
-        return ['data' => $this->show($company,$invitation)];
+        return ['data' => $this->show($company, $invitation)];
     }
 }

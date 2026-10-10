@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Messaging\OutboxDelivery;
+use App\Services\Messaging\OutboxDelivery;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 

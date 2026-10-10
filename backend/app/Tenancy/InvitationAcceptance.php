@@ -2,9 +2,9 @@
 
 namespace App\Tenancy;
 
-use App\Actions\ResetUserPassword;
-use App\Audit\RequestId;
-use App\Audit\SecurityEvents;
+use App\Actions\Fortify\ResetUserPassword;
+use App\Services\Audit\RequestId;
+use App\Services\Audit\SecurityEvents;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -80,6 +80,6 @@ final class InvitationAcceptance
             return $out;
         });
 
-        return response()->json(['data' => ['tenant_id' => $key[0], 'company_id' => $result->company_id, 'requires_mfa' => (bool) $result->requires_mfa]])->header('Cache-Control','no-store, private');
+        return response()->json(['data' => ['tenant_id' => $key[0], 'company_id' => $result->company_id, 'requires_mfa' => (bool) $result->requires_mfa]])->header('Cache-Control', 'no-store, private');
     }
 }

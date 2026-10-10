@@ -2,9 +2,12 @@
 
 namespace App\Providers;
 
-use App\Tenancy\TenantContext;
+use App\Models\Tenancy\Company;
+use App\Policies\CompanyPolicy;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -19,5 +22,6 @@ class AppServiceProvider extends ServiceProvider
     {
         // Public invitation preview/accept: keyed by IP even for signed-in callers, so a session cannot widen the budget.
         RateLimiter::for('invitations', fn (Request $r) => Limit::perMinute(10)->by('invitations|'.$r->ip()));
+        Gate::policy(Company::class, CompanyPolicy::class);
     }
 }

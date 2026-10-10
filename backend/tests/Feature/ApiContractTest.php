@@ -4,10 +4,10 @@ namespace Tests\Feature;
 
 use App\Jobs\DeliverOutboxEvent;
 use App\Mail\InvitationMail;
-use App\Messaging\OutboxDelivery;
-use App\Messaging\OutboxRelay;
-use App\Tenancy\InvitationSendHandler;
-use App\Tenancy\PermissionCatalog;
+use App\Services\Messaging\Handlers\InvitationSendHandler;
+use App\Services\Messaging\OutboxDelivery;
+use App\Services\Messaging\OutboxRelay;
+use App\Services\Tenancy\PermissionCatalog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;

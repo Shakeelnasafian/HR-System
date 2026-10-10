@@ -2,8 +2,8 @@
 
 namespace App\Organization;
 
-use App\Audit\Audit;
-use App\Tenancy\ScopesCompany;
+use App\Services\Audit\Audit;
+use App\Services\Tenancy\ScopesCompany;
 use DateTimeZone;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;

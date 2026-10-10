@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Audit\RequestId;
+use App\Services\Audit\RequestId;
 use Closure;
 use Illuminate\Http\Request;
 

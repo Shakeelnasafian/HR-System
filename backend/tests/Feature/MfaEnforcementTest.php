@@ -3,9 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use App\Tenancy\CompanyAccess;
-use App\Tenancy\PermissionCatalog;
-use App\Tenancy\TenantContext;
+use App\Services\Tenancy\CompanyAccess;
+use App\Services\Tenancy\PermissionCatalog;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -122,6 +122,6 @@ class MfaEnforcementTest extends FoundationFixture
             $this->assertSame(403, $e->getStatusCode());
         }
         $this->assertSame(1, $context->run($this->t1, $this->uid, fn () => $access->readable('workforce.read')->count(), true));
-        $this->assertSame(0,$context->run($this->t1,$this->uid,fn () => $access->readable('audit.read')->count()));
+        $this->assertSame(0, $context->run($this->t1, $this->uid, fn () => $access->readable('audit.read')->count()));
     }
 }

@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Audit\SecurityEvents;
 use App\Models\User;
-use App\Tenancy\TenantContext;
+use App\Services\Audit\SecurityEvents;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -144,6 +144,6 @@ class AuditTrailTest extends FoundationFixture
         $this->denied(fn () => app(TenantContext::class)->run($this->t1, $this->uid, fn () => DB::table('audit_events')->update(['action' => 'forged'])));
         $this->denied(fn () => app(TenantContext::class)->run($this->t1, $this->uid, fn () => DB::table('audit_events')->delete()));
         $this->assertSame(1, DB::connection('fixture')->table('security_events')->count());
-        $this->assertSame(2,DB::connection('fixture')->table('audit_events')->count());
+        $this->assertSame(2, DB::connection('fixture')->table('audit_events')->count());
     }
 }

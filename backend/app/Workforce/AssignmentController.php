@@ -2,9 +2,9 @@
 
 namespace App\Workforce;
 
-use App\Audit\Audit;
 use App\Http\Resources\ProjectedRow;
-use App\Tenancy\ScopesCompany;
+use App\Services\Audit\Audit;
+use App\Services\Tenancy\ScopesCompany;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
@@ -109,8 +109,8 @@ final class AssignmentController
             $this->rows('employments', $company)->where('id', $row->id)->update(['probation_end_date' => $data['probation_end_date'], 'version' => $row->version + 1, 'updated_at' => now()]);
             Audit::record($company, 'employment.updated', $row->id, ['fields' => ['probation_end_date']], $data['reason']);
         }
-        $fresh = $this->rows('employments',$company)->where('id',$row->id)->get(Assignments::EMPLOYMENT);
+        $fresh = $this->rows('employments', $company)->where('id', $row->id)->get(Assignments::EMPLOYMENT);
 
-        return ['data' => $this->assignments->withCurrent($company,$fresh,now($c->timezone)->toDateString())->first()];
+        return ['data' => $this->assignments->withCurrent($company, $fresh, now($c->timezone)->toDateString())->first()];
     }
 }

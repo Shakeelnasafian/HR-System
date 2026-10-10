@@ -2,7 +2,7 @@
 
 namespace App\Jobs\Middleware;
 
-use App\Tenancy\TenantContext;
+use App\Services\Tenancy\TenantContext;
 use Closure;
 use InvalidArgumentException;
 

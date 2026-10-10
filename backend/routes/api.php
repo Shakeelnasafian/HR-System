@@ -1,91 +1,87 @@
 <?php
 
-use App\Http\Resources\ProjectedRow;
+use App\Http\Controllers\Api\Account\CurrentUserController;
+use App\Http\Controllers\Api\Account\TimezoneController;
+use App\Http\Controllers\Api\Tenancy\ContextController;
 use App\Organization\CalendarController;
 use App\Organization\CompanySettingsController;
 use App\Tenancy\AccessController;
-use App\Tenancy\CompanyAccess;
 use App\Tenancy\InvitationAcceptance;
 use App\Tenancy\InvitationController;
 use App\Tenancy\PermissionBundleController;
-use App\Tenancy\TenantContext;
 use App\Workforce\AssignmentController;
 use App\Workforce\ProfileController;
 use App\Workforce\WorkforceController;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
+/*
+ * /api/v1 route declarations only. URL versioning is independent of the controller folders.
+ * Company routes take {company} and child ids as plain strings: requests authorize the company first (404 when it is
+ * unknown, foreign or not permitted), then resolve children inside it. Do not add implicit binding for tenant models.
+ */
+
+// Public invitation endpoints (SPA session and CSRF, rate limited by IP).
 Route::prefix('v1/invitations')->middleware('throttle:invitations')->controller(InvitationAcceptance::class)->group(function () {
     Route::post('preview', 'preview');
     Route::post('accept', 'accept');
 });
+
 Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
-    Route::get('/me', fn (Request $r) => response()->json(['data' => [
-        'id' => $r->user()->id, 'name' => $r->user()->name, 'email' => $r->user()->email,
-        'mfa_enrolled' => (bool) $r->user()->two_factor_confirmed_at,
-        'mfa_verified' => (int) $r->session()->get('mfa_user_id') === (int) $r->user()->id,
-    ]])->header('Cache-Control', 'no-store, private'));
-    Route::get('/me/tenants', fn (Request $r) => response()->json(['data' => DB::table('tenant_memberships as m')
-        ->join('tenants as t', 't.id', '=', 'm.tenant_id')->where('m.user_id', $r->user()->id)
-        ->where('m.status', 'active')->where('t.status', 'active')->orderBy('t.name')
-        ->get(['t.id', 't.name', 'm.requires_mfa'])])->header('Cache-Control', 'no-store, private'));
-    // The server's IANA list is the only set PATCH /companies/{company} accepts; browsers' Intl lists differ (aliases, missing zones).
-    Route::get('/timezones', fn () => response()->json(['data' => DateTimeZone::listIdentifiers()])->header('Cache-Control', 'private, max-age=86400'));
+    // Account: no tenant context.
+    Route::get('me', [CurrentUserController::class, 'show']);
+    Route::get('me/tenants', [CurrentUserController::class, 'tenants']);
+    Route::get('timezones', TimezoneController::class);
+
+    // Everything below runs in one tenant transaction (X-Tenant-ID) with RLS and MFA enforcement.
     Route::middleware('tenant')->group(function () {
-        Route::get('companies/{company}/permission-bundles', [PermissionBundleController::class, 'index']);
-        Route::post('companies/{company}/permission-bundles', [PermissionBundleController::class, 'store']);
-        Route::post('companies/{company}/permission-bundles/{bundle}/archive', [PermissionBundleController::class, 'archive']);
-        Route::get('companies/{company}/access', [AccessController::class, 'index']);
-        Route::put('companies/{company}/access/{membership}', [AccessController::class, 'replace']);
-        Route::post('companies/{company}/access/{membership}/revoke-membership', [AccessController::class, 'revokeMembership']);
-        Route::get('companies/{company}/invitations', [InvitationController::class, 'index']);
-        Route::post('companies/{company}/invitations', [InvitationController::class, 'store']);
-        Route::post('companies/{company}/invitations/{invitation}/resend', [InvitationController::class, 'resend']);
-        Route::post('companies/{company}/invitations/{invitation}/cancel', [InvitationController::class, 'cancel']);
-        Route::prefix('companies/{company}')->controller(WorkforceController::class)->group(function () {
-            Route::get('capabilities', 'capabilities');
-            Route::get('organization/{kind}', 'organization');
-            Route::post('organization/{kind}', 'createOrganization');
-            Route::patch('organization/{kind}/{id}', 'updateOrganization');
-            Route::get('employees', 'employees');
-            Route::post('employees', 'createEmployee');
-            Route::get('employees/{id}', 'employee');
-            Route::post('employees/{id}/employments', 'rehire');
-            Route::post('employments/{id}/{action}', 'transition')->whereIn('action', ['activate', 'end', 'cancel']);
-            Route::get('audit', 'audit');
-        });
-        Route::prefix('companies/{company}')->controller(ProfileController::class)->group(function () {
-            Route::get('profile-fields', 'fields');
-            Route::put('profile-fields', 'configure');
-            Route::get('employees/{employee}/profile', 'show');
-            Route::patch('employees/{employee}/profile', 'update');
-        });
-        Route::prefix('companies/{company}/employments/{employment}')->controller(AssignmentController::class)->group(function () {
-            Route::patch('', 'update');
-            Route::get('assignments', 'index');
-            Route::post('assignments', 'store');
-            Route::get('reports', 'reports');
-        });
-        Route::get('companies/{company}', [CompanySettingsController::class, 'show']);
-        Route::patch('companies/{company}', [CompanySettingsController::class, 'update']);
-        Route::prefix('companies/{company}/calendars')->controller(CalendarController::class)->group(function () {
-            Route::get('', 'index');
-            Route::post('', 'store');
-            Route::get('{calendar}', 'show');
-            Route::patch('{calendar}', 'update');
-            Route::post('{calendar}/patterns', 'addPattern');
-            Route::post('{calendar}/holidays', 'addHoliday');
-            Route::delete('{calendar}/holidays/{holiday}', 'removeHoliday');
-        });
+        Route::get('context', [ContextController::class, 'show']);
+        Route::get('companies', [ContextController::class, 'companies']);
 
-        Route::get('/context', fn (CompanyAccess $access, TenantContext $context) => ['data' => [
-            'tenant_id' => $context->id(), 'companies' => $access->readable()->orderBy('name')->get(['id', 'name', 'code']),
-        ]]);
-        Route::get('/companies', function (Request $r, CompanyAccess $access) {
-            $r->validate(['page' => 'sometimes|integer|min:1', 'per_page' => 'sometimes|integer|min:1|max:100']);
+        Route::prefix('companies/{company}')->group(function () {
+            // Tenancy: capabilities, permission bundles, company access, invitations.
+            Route::get('capabilities', [WorkforceController::class, 'capabilities']);
+            Route::get('permission-bundles', [PermissionBundleController::class, 'index']);
+            Route::post('permission-bundles', [PermissionBundleController::class, 'store']);
+            Route::post('permission-bundles/{bundle}/archive', [PermissionBundleController::class, 'archive']);
+            Route::get('access', [AccessController::class, 'index']);
+            Route::put('access/{membership}', [AccessController::class, 'replace']);
+            Route::post('access/{membership}/revoke-membership', [AccessController::class, 'revokeMembership']);
+            Route::get('invitations', [InvitationController::class, 'index']);
+            Route::post('invitations', [InvitationController::class, 'store']);
+            Route::post('invitations/{invitation}/resend', [InvitationController::class, 'resend']);
+            Route::post('invitations/{invitation}/cancel', [InvitationController::class, 'cancel']);
 
-            return ProjectedRow::collection($access->readable()->orderBy('name')->orderBy('id')->paginate((int) $r->input('per_page', 25), ['id', 'name', 'code', 'timezone']));
+            // Organization: company settings, organization units, calendars, profile field settings.
+            Route::get('', [CompanySettingsController::class, 'show']);
+            Route::patch('', [CompanySettingsController::class, 'update']);
+            Route::get('organization/{kind}', [WorkforceController::class, 'organization']);
+            Route::post('organization/{kind}', [WorkforceController::class, 'createOrganization']);
+            Route::patch('organization/{kind}/{id}', [WorkforceController::class, 'updateOrganization']);
+            Route::get('calendars', [CalendarController::class, 'index']);
+            Route::post('calendars', [CalendarController::class, 'store']);
+            Route::get('calendars/{calendar}', [CalendarController::class, 'show']);
+            Route::patch('calendars/{calendar}', [CalendarController::class, 'update']);
+            Route::post('calendars/{calendar}/patterns', [CalendarController::class, 'addPattern']);
+            Route::post('calendars/{calendar}/holidays', [CalendarController::class, 'addHoliday']);
+            Route::delete('calendars/{calendar}/holidays/{holiday}', [CalendarController::class, 'removeHoliday']);
+            Route::get('profile-fields', [ProfileController::class, 'fields']);
+            Route::put('profile-fields', [ProfileController::class, 'configure']);
+
+            // Workforce: employees, employments, assignments, reporting lines, private profiles.
+            Route::get('employees', [WorkforceController::class, 'employees']);
+            Route::post('employees', [WorkforceController::class, 'createEmployee']);
+            Route::get('employees/{id}', [WorkforceController::class, 'employee']);
+            Route::post('employees/{id}/employments', [WorkforceController::class, 'rehire']);
+            Route::get('employees/{employee}/profile', [ProfileController::class, 'show']);
+            Route::patch('employees/{employee}/profile', [ProfileController::class, 'update']);
+            Route::patch('employments/{employment}', [AssignmentController::class, 'update']);
+            Route::get('employments/{employment}/assignments', [AssignmentController::class, 'index']);
+            Route::post('employments/{employment}/assignments', [AssignmentController::class, 'store']);
+            Route::get('employments/{employment}/reports', [AssignmentController::class, 'reports']);
+            Route::post('employments/{id}/{action}', [WorkforceController::class, 'transition'])->whereIn('action', ['activate', 'end', 'cancel']);
+
+            // Audit.
+            Route::get('audit', [WorkforceController::class, 'audit']);
         });
     });
 });
