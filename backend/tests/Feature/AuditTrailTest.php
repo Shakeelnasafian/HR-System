@@ -17,6 +17,7 @@ class AuditTrailTest extends FoundationFixture
     }
     private function ready(): void
     {
+        $this->requireMfa();
         foreach(['workforce.read','workforce.write','audit.read'] as $p) { DB::connection('fixture')->table('company_grants')->insert(['tenant_id'=>$this->t1,'company_id'=>$this->a,'membership_id'=>$this->membership,'permission'=>$p]); }
         $this->signIn()->withHeader('X-Tenant-ID',$this->t1);
     }
