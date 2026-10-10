@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { api, csrf } from "./api";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { api, ApiError, csrf } from "./api";
 import { PermissionBundles, type Bundle } from "./PermissionBundles";
+import { Invitations } from "./Invitations";
 
 type Member = {
   id: string;
@@ -25,7 +26,8 @@ export function Access({ tenant, base }: { tenant: string; base: string }) {
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [error, setError] = useState(""),
     [message, setMessage] = useState(""),
-    [editing, setEditing] = useState<Member | null>(null);
+    [editing, setEditing] = useState<Member | null>(null),
+    [removing, setRemoving] = useState<Member | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     Promise.all([api<AccessPage>(`${base}/access?page=${page}`, { tenant, signal: controller.signal }),
@@ -53,10 +55,30 @@ export function Access({ tenant, base }: { tenant: string; base: string }) {
           {error}
         </p>
       )}
-      {message && <p role="status">{message}</p>}
+      <p role="status" aria-live="polite">{message}</p>
       {result ? (
         <>
-          {editing ? (
+          {removing ? (
+            <RevokeMembership
+              key={removing.id}
+              tenant={tenant}
+              base={base}
+              member={removing}
+              version={result.access_version}
+              onClose={() => {
+                setRemoving(null);
+                setResult(null);
+                setRevision((n) => n + 1);
+              }}
+              onRemoved={() => {
+                setMessage(`${removing.name} was removed from the organization.`);
+                setRemoving(null);
+                setError("");
+                setResult(null);
+                setRevision((n) => n + 1);
+              }}
+            />
+          ) : editing ? (
             <GrantForm
               key={editing.id}
               tenant={tenant}
@@ -80,6 +102,7 @@ export function Access({ tenant, base }: { tenant: string; base: string }) {
             />
           ) : (
             <>
+              <Invitations tenant={tenant} base={base} catalog={result.catalog} />
               <PermissionBundles tenant={tenant} base={base} bundles={bundles} catalog={result.catalog} onSaved={(action) => { setResult(null); setRevision(n => n + 1); setMessage(action === "archived" ? "Bundle archived. Member permissions are unchanged." : "Bundle saved. Member permissions are unchanged."); }} />
               <div className="table-wrap">
                 <table>
@@ -109,16 +132,28 @@ export function Access({ tenant, base }: { tenant: string; base: string }) {
                               Your access — another administrator must edit
                             </span>
                           ) : (
-                            <button
-                              className="text-button"
-                              disabled={member.status !== "active"}
-                              onClick={() => {
-                                setEditing(member);
-                                setMessage("");
-                              }}
-                            >
-                              Edit permissions for {member.name}
-                            </button>
+                            <div className="row-actions">
+                              <button
+                                className="text-button"
+                                disabled={member.status !== "active"}
+                                onClick={() => {
+                                  setEditing(member);
+                                  setMessage("");
+                                }}
+                              >
+                                Edit permissions for {member.name}
+                              </button>
+                              <button
+                                className="text-button danger"
+                                disabled={member.status !== "active"}
+                                onClick={() => {
+                                  setRemoving(member);
+                                  setMessage("");
+                                }}
+                              >
+                                Remove {member.name} from organization
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -341,5 +376,106 @@ function GrantForm({
         </form>
       )}
     </div>
+  );
+}
+
+function RevokeMembership({
+  tenant,
+  base,
+  member,
+  version,
+  onClose,
+  onRemoved,
+}: {
+  tenant: string;
+  base: string;
+  member: Member;
+  version: number;
+  onClose: () => void;
+  onRemoved: () => void;
+}) {
+  const [reason, setReason] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [conflict, setConflict] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => heading.current?.focus(), []);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await csrf();
+      await api(`${base}/access/${member.id}/revoke-membership`, {
+        method: "POST",
+        tenant,
+        body: { version, reason },
+      });
+      onRemoved();
+    } catch (e) {
+      const stale = e instanceof ApiError && e.status === 409;
+      setConflict(stale);
+      // 403 explains which authority is missing; show the server message verbatim.
+      setError(
+        stale
+          ? "Access changed since you loaded this page. Close and reload to review the latest state."
+          : (e as Error).message,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form
+      className="panel module-form"
+      onSubmit={submit}
+      aria-labelledby="revoke-heading"
+    >
+      <h3 id="revoke-heading" ref={heading} tabIndex={-1}>
+        Remove {member.name} from organization
+      </h3>
+      <p>{member.email}</p>
+      <div className="notice" id="revoke-explanation">
+        <p>
+          This revokes {member.name}’s membership of the whole organization. It
+          removes their access to <strong>every company in this organization</strong>,
+          not only this one. They lose access on their next request.
+        </p>
+        <p>
+          Employee records are not deleted. To remove access to this company
+          only, edit their permissions instead.
+        </p>
+      </div>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <label>
+        Reason — avoid confidential details
+        <input
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          maxLength={500}
+          required
+          aria-describedby="revoke-explanation"
+        />
+      </label>
+      <div className="actions">
+        {!conflict && (
+          <button className="danger-button" disabled={busy}>
+            {busy ? "Removing…" : "Remove from organization"}
+          </button>
+        )}
+        <button
+          type="button"
+          className="secondary"
+          disabled={busy}
+          onClick={onClose}
+        >
+          {conflict ? "Close and reload" : "Cancel"}
+        </button>
+      </div>
+    </form>
   );
 }

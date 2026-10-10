@@ -45,6 +45,8 @@ function stubApi(
         return Promise.resolve(new Response(null, { status: 204 }));
       if (options.method === "GET" && path.endsWith("/permission-bundles"))
         return json({ data: bundles() });
+      if (options.method === "GET" && path.includes("/invitations?"))
+        return json({ data: [] });
       if (options.method === "GET" && path.includes("/access?page="))
         return json(state);
       if (options.method === "PUT" || options.method === "POST")
