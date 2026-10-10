@@ -13,7 +13,7 @@ User direction: continue the remaining modules, preserving a separate API-based 
 | Leave | Not implemented | HR-approved policy inputs, schedules, immutable ledger/reservations, concurrent balances, approvals/cancellations/reversal |
 | Attendance | Not implemented | Shifts/overnight timezones, raw events/deduplication, correction/overtime approvals |
 | Lifecycle | Not implemented | Versioned onboarding/probation/offboarding templates, tasks, idempotent domain actions |
-| Notifications/outbox | Not implemented | Transactional outbox, delivery attempts, deduplication, revoked-recipient checks, alerts |
+| Notifications/outbox | Transactional outbox, leased relay, attempts, abandoned-attempt detection and failure alerts (log); no notification channels yet | Transactional outbox, delivery attempts, deduplication, revoked-recipient checks, alerts |
 | Reports/integrations | Not implemented | Reconciled scoped reports, audited expiring exports, credential scopes, signed/retried webhooks |
 | Operations/pilot | Docker local stack and CI | Full readiness/monitoring, private data backups/restore, load/accessibility/security/UAT and migration rehearsal |
 

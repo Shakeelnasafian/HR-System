@@ -9,5 +9,6 @@ GRANT SELECT, INSERT, UPDATE ON permission_bundles, working_calendars TO hr_app;
 GRANT SELECT, INSERT ON calendar_patterns TO hr_app;
 GRANT SELECT, INSERT, DELETE ON calendar_holidays TO hr_app;
 GRANT SELECT, INSERT ON audit_events TO hr_app;
+GRANT SELECT, INSERT, UPDATE ON outbox_events, outbox_attempts TO hr_app;
 GRANT INSERT ON security_events TO hr_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO hr_app;
