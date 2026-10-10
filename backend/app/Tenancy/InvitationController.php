@@ -12,29 +12,30 @@ use Illuminate\Validation\ValidationException;
 
 // Company invitations (TEN-03). The email lives only in the invitation row; audit keeps ids and permission codes.
 // The secret is minted by the invitation.send outbox handler, never here, and only its SHA-256 hash is stored.
+// Expiry is always decided by the database clock.
 final class InvitationController
 {
-    private const FIELDS = ['id','email','permissions','requires_mfa','status','expires_at','created_at','version'];
     public function __construct(private readonly CompanyAdministration $admin) {}
     private function query(string $company)
     {
         return DB::table('invitations')->where('tenant_id',app(TenantContext::class)->id())->where('company_id',$company);
     }
-    private function present(object $row): array
+    private function fields(): array
     {
-        $row=(array)$row; $row['permissions']=json_decode($row['permissions'],true);
-        // Expiry is evaluated at read time; the stored row stays pending until replaced or cancelled.
-        if($row['status']==='pending' && now()->greaterThanOrEqualTo($row['expires_at'])) {$row['status']='expired';}
-        return $row;
+        // A stored pending row past expires_at is reported as expired.
+        return ['id','email','permissions','requires_mfa',DB::raw("CASE WHEN status = 'pending' AND expires_at <= clock_timestamp() THEN 'expired' ELSE status END AS status"),
+            'expires_at','created_at','version'];
     }
-    private function expires() { return now()->addHours((int)config('invitations.ttl_hours')); }
+    private function present(object $row): array { $row=(array)$row; $row['permissions']=json_decode($row['permissions'],true); return $row; }
+    private function expires() { return DB::raw('clock_timestamp() + make_interval(hours => '.(int)config('invitations.ttl_hours').')'); }
+    private function show(string $company, string $id): array { return $this->present($this->query($company)->where('id',$id)->first($this->fields())); }
     public function index(Request $r, string $company)
     {
         $this->admin->authorize($r,$company);
         $r->validate(['status'=>'sometimes|in:pending,all','page'=>'sometimes|integer|min:1','per_page'=>'sometimes|integer|min:1|max:100']);
         $q=$this->query($company);
-        if($r->input('status','pending')==='pending') {$q->where('status','pending')->where('expires_at','>',now());}
-        $page=$q->orderByDesc('created_at')->orderBy('id')->paginate((int)$r->input('per_page',25),self::FIELDS);
+        if($r->input('status','pending')==='pending') {$q->where('status','pending')->whereRaw('expires_at > clock_timestamp()');}
+        $page=$q->orderByDesc('created_at')->orderBy('id')->paginate((int)$r->input('per_page',25),$this->fields());
         return ProjectedRow::collection($page->through(fn($row)=>$this->present($row)));
     }
     public function store(Request $r, string $company)
@@ -55,42 +56,43 @@ final class InvitationController
             ->whereExists(fn($q)=>$q->selectRaw('1')->from('company_grants as g')->where('g.tenant_id',$actor->tenant_id)->where('g.company_id',$company)->whereColumn('g.membership_id','m.id'))->exists();
         if($member) {throw ValidationException::withMessages(['email'=>'This person already has access to this company; use Permissions to change it.']);}
         // A lapsed pending invitation no longer blocks a new one.
-        $this->query($company)->where('email',$email)->where('status','pending')->where('expires_at','<=',now())->update(['status'=>'expired','token_hash'=>null,'updated_at'=>now()]);
+        $this->query($company)->where('email',$email)->where('status','pending')->whereRaw('expires_at <= clock_timestamp()')
+            ->update(['status'=>'expired','token_hash'=>null,'updated_at'=>DB::raw('clock_timestamp()')]);
         if($this->query($company)->where('email',$email)->where('status','pending')->exists()) {throw ValidationException::withMessages(['email'=>'A pending invitation already exists for this email. Resend or cancel it.']);}
-        $id=(string)Str::uuid(); $mfa=PermissionCatalog::requiresMfa($permissions); $expires=$this->expires();
+        $id=(string)Str::uuid(); $mfa=PermissionCatalog::requiresMfa($permissions);
         $this->query($company)->insert(['id'=>$id,'tenant_id'=>$actor->tenant_id,'company_id'=>$company,'email'=>$email,'permissions'=>json_encode($permissions),
-            'requires_mfa'=>$mfa,'expires_at'=>$expires,'invited_by'=>app(TenantContext::class)->userId()]);
+            'requires_mfa'=>$mfa,'expires_at'=>$this->expires(),'invited_by'=>app(TenantContext::class)->userId()]);
         Outbox::record('invitation.send',['invitation'=>$id,'send'=>1],"invitation.send:$id:1",$company);
         Audit::record($company,'invitation.created',$id,['permissions'=>$permissions,'requires_mfa'=>$mfa],$data['reason']);
-        return response()->json(['data'=>['id'=>$id,'email'=>$email,'permissions'=>$permissions,'requires_mfa'=>$mfa,'status'=>'pending','expires_at'=>$expires->toIso8601String(),'version'=>1]],201);
+        return response()->json(['data'=>$this->show($company,$id)],201);
     }
     /** @return array{0:object,1:array} locked invitation row and validated input, after authority and version checks */
     private function pending(Request $r, string $company, string $invitation): array
     {
         abort_unless(Str::isUuid($invitation),404);
         [,,$held]=$this->admin->authorize($r,$company,true);
-        $row=$this->query($company)->where('id',$invitation)->lockForUpdate()->first(); abort_unless($row,404);
+        $row=$this->query($company)->where('id',$invitation)->lockForUpdate()
+            ->first(['id','permissions','status','send','version',DB::raw('expires_at > clock_timestamp() AS live')]); abort_unless($row,404);
         $data=$r->validate(['version'=>'required|integer|min:1','reason'=>['required','string','max:500','regex:/\S/u']]);
         abort_if((bool)array_diff(json_decode($row->permissions,true),$held),403,'This invitation includes permissions you do not currently hold in this company.');
         abort_unless($row->version===$data['version'],409,'This invitation changed. Reload and review it.');
-        abort_unless($row->status==='pending' && now()->lessThan($row->expires_at),409,'Only pending, unexpired invitations can be changed.');
+        abort_unless($row->status==='pending' && $row->live,409,'Only pending, unexpired invitations can be changed.');
         return [$row,$data];
     }
     public function resend(Request $r, string $company, string $invitation): array
     {
         [$row,$data]=$this->pending($r,$company,$invitation);
-        $send=$row->send+1; $expires=$this->expires();
+        $send=$row->send+1;
         // Clearing the hash revokes the previous link at once; the handler mints a fresh secret for this send only.
-        $this->query($company)->where('id',$invitation)->update(['send'=>$send,'version'=>$row->version+1,'expires_at'=>$expires,'token_hash'=>null,'updated_at'=>now()]);
+        $this->query($company)->where('id',$invitation)->update(['send'=>$send,'version'=>$row->version+1,'expires_at'=>$this->expires(),'token_hash'=>null,'updated_at'=>DB::raw('clock_timestamp()')]);
         Outbox::record('invitation.send',['invitation'=>$invitation,'send'=>$send],"invitation.send:$invitation:$send",$company);
         Audit::record($company,'invitation.resent',$invitation,['send'=>$send],$data['reason']);
-        return ['data'=>$this->present($this->query($company)->where('id',$invitation)->first(self::FIELDS))];
+        return ['data'=>$this->show($company,$invitation)];
     }
     public function cancel(Request $r, string $company, string $invitation): array
     {
-        [$row,$data]=$this->pending($r,$company,$invitation);
-        $this->query($company)->where('id',$invitation)->update(['status'=>'cancelled','cancelled_at'=>now(),'token_hash'=>null,'version'=>$row->version+1,'updated_at'=>now()]);
-        Audit::record($company,'invitation.cancelled',$invitation,[],$data['reason']);
-        return ['data'=>$this->present($this->query($company)->where('id',$invitation)->first(self::FIELDS))];
+        [,$data]=$this->pending($r,$company,$invitation);
+        $this->admin->cancelInvitations($this->query($company)->where('id',$invitation),'invitation.cancelled',[],$data['reason']);
+        return ['data'=>$this->show($company,$invitation)];
     }
 }

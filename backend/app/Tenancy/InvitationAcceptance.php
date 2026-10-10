@@ -5,6 +5,7 @@ use App\Actions\ResetUserPassword;
 use App\Audit\RequestId;
 use App\Audit\SecurityEvents;
 use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -49,7 +50,11 @@ final class InvitationAcceptance
             } else {
                 $data=$r->validate(['name'=>['required','string','max:255','regex:/\S/u'],'password'=>ResetUserPassword::rules()]);
                 // The new account is not signed in: the person signs in normally (then enrolls MFA when required).
-                $user=DB::table('users')->insertGetId(['name'=>trim($data['name']),'email'=>$row->email,'password'=>Hash::make($data['password']),'created_at'=>now(),'updated_at'=>now()]);
+                try {
+                    $user=DB::table('users')->insertGetId(['name'=>trim($data['name']),'email'=>$row->email,'password'=>Hash::make($data['password']),'created_at'=>now(),'updated_at'=>now()]);
+                } catch(UniqueConstraintViolationException) {
+                    abort(404,self::GONE); // a concurrent accept created the account (and used the invitation) first
+                }
             }
             try {
                 $out=DB::selectOne('SELECT * FROM hr_accept_invitation(?::uuid, ?::uuid, ?, ?, ?::uuid)',[...$key,$user,app(RequestId::class)->current()]);

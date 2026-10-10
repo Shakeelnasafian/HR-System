@@ -68,7 +68,8 @@ class InvitationTest extends FoundationFixture
     private function link(int $index=-1): array
     {
         $mails=Mail::sent(InvitationMail::class)->values(); $mail=$mails[$index<0?count($mails)+$index:$index];
-        parse_str((string)parse_url($mail->url,PHP_URL_QUERY),$query);
+        $this->assertNull(parse_url($mail->url,PHP_URL_QUERY),'The secret must never travel in the query string.');
+        parse_str((string)parse_url($mail->url,PHP_URL_FRAGMENT),$query);
         return $query;
     }
     private function open(string $action, array $link, array $extra=[]) { return $this->postJson('/api/v1/invitations/'.$action,$link+$extra); }
@@ -129,7 +130,7 @@ class InvitationTest extends FoundationFixture
         $event=$this->db()->table('outbox_events')->where('dedupe_key',"invitation.send:$id:1")->first();
         $this->assertTrue($mail->hasTo('alice@example.test'));
         $this->assertSame([$event->id,'delivered'],[$mail->eventId,$event->status]);
-        $this->assertStringStartsWith(rtrim(config('app.url'),'/').'/invitations/accept?',$mail->url);
+        $this->assertStringStartsWith(rtrim(config('app.url'),'/').'/invitations/accept#tenant=',$mail->url);
         $this->assertSame([$this->t1,$id],[$link['tenant'],$link['invitation']]);
         $this->assertMatchesRegularExpression('/^[A-Za-z0-9_-]{43}$/',$link['token']);
         $hash=$this->db()->table('invitations')->where('id',$id)->value('token_hash');
@@ -289,10 +290,28 @@ class InvitationTest extends FoundationFixture
         $this->ready();
         [$user]=$this->person('ivy@example.test');
         [$id,$link]=$this->inviteAndDeliver('ivy@example.test');
+        $this->race($link,(string)$user);
+        $membership=$this->db()->table('tenant_memberships')->where('tenant_id',$this->t1)->where('user_id',$user)->sole();
+        $this->assertSame(['company.read','workforce.read'],$this->db()->table('company_grants')->where('membership_id',$membership->id)->orderBy('permission')->pluck('permission')->all());
+        $this->assertSame(1,$this->db()->table('audit_events')->where('action','invitation.accepted')->where('resource_id',$id)->count());
+        $this->assertSame(2,$this->db()->table('companies')->where('id',$this->a)->value('access_version'));
+    }
+    public function test_concurrent_new_account_accepts_create_one_account_and_a_generic_404(): void
+    {
+        $this->ready();
+        [$id,$link]=$this->inviteAndDeliver('jo@example.test');
+        $this->race($link,'new');
+        $user=$this->db()->table('users')->where('email','jo@example.test')->sole();
+        $this->assertSame(1,$this->db()->table('tenant_memberships')->where('tenant_id',$this->t1)->where('user_id',$user->id)->count());
+        $this->assertSame([$user->id,'accepted'],[(int)$this->db()->table('invitations')->where('id',$id)->value('accepted_by'),$this->db()->table('invitations')->where('id',$id)->value('status')]);
+    }
+    /** Two real processes accept the same link at once: exactly one wins, the other sees the generic 404. */
+    private function race(array $link, string $user): void
+    {
         $barrier=storage_path('logs/invite-'.Str::uuid()); $processes=[];
         try {
             foreach([1,2] as $_) {
-                $process=new Process([PHP_BINARY,'tests/Support/accept-invitation.php',$link['tenant'],$link['invitation'],$link['token'],(string)$user,$barrier],base_path(),['APP_ENV'=>'testing']);
+                $process=new Process([PHP_BINARY,'tests/Support/accept-invitation.php',$link['tenant'],$link['invitation'],$link['token'],$user,$barrier],base_path(),['APP_ENV'=>'testing']);
                 $process->setTimeout(25); $process->start(); $processes[]=$process;
             }
             $deadline=microtime(true)+15;
@@ -305,10 +324,63 @@ class InvitationTest extends FoundationFixture
             foreach($processes as $process) {if($process->isRunning()){$process->stop();}}
             foreach(glob($barrier.'*') as $file) {unlink($file);}
         }
-        $membership=$this->db()->table('tenant_memberships')->where('tenant_id',$this->t1)->where('user_id',$user)->sole();
-        $this->assertSame(['company.read','workforce.read'],$this->db()->table('company_grants')->where('membership_id',$membership->id)->orderBy('permission')->pluck('permission')->all());
-        $this->assertSame(1,$this->db()->table('audit_events')->where('action','invitation.accepted')->where('resource_id',$id)->count());
-        $this->assertSame(2,$this->db()->table('companies')->where('id',$this->a)->value('access_version'));
+    }
+
+    public function test_forged_or_orphaned_invitations_cannot_be_accepted_and_columns_are_locked(): void
+    {
+        $this->ready();
+        [$reader,$readerMembership]=$this->person('reader@example.test',[$this->a=>['company.read']]);
+        // A compromised runtime can insert a row, but the inviter must really hold access.manage and every invited permission.
+        $token=Str::random(43); $forged=(string)Str::uuid();
+        app(\App\Tenancy\TenantContext::class)->run($this->t1,$this->uid,function() use($forged,$reader,$token) {
+            DB::table('invitations')->insert(['id'=>$forged,'tenant_id'=>$this->t1,'company_id'=>$this->a,'email'=>'mallory@example.test',
+                'permissions'=>json_encode(['company.read','access.manage']),'requires_mfa'=>true,'expires_at'=>now()->addDay(),'invited_by'=>$reader]);
+            DB::table('invitations')->where('id',$forged)->update(['token_hash'=>hash('sha256',$token)]);
+            foreach(['email'=>'x@example.test','permissions'=>'["company.read"]','invited_by'=>$this->uid,'requires_mfa'=>false,'company_id'=>$this->b,'tenant_id'=>$this->t2,'accepted_by'=>$reader] as $column=>$value) {
+                $this->denied(fn()=>DB::transaction(fn()=>DB::table('invitations')->where('id',$forged)->update([$column=>$value])));
+            }
+            $this->denied(fn()=>DB::transaction(fn()=>DB::table('invitations')->insert(['id'=>(string)Str::uuid(),'tenant_id'=>$this->t1,'company_id'=>$this->a,'email'=>'y@example.test',
+                'permissions'=>'["company.read"]','requires_mfa'=>false,'expires_at'=>now()->addDay(),'invited_by'=>$this->uid,'token_hash'=>hash('sha256','y')])));
+        });
+        $link=['tenant'=>$this->t1,'invitation'=>$forged,'token'=>$token];
+        $this->as(null)->open('preview',$link)->assertNotFound();
+        $this->newAccount($link)->assertNotFound();
+        $this->assertSame(0,$this->db()->table('users')->where('email','mallory@example.test')->count());
+        // Orphaned: the inviter loses an invited permission after inviting; send is cancelled and the old link dies.
+        $this->as($this->uid);
+        $id=$this->invite('kim@example.test')->assertCreated()->json('data.id');
+        $this->assertSame(['delivered'],$this->deliver()); $link=$this->link();
+        $this->db()->table('company_grants')->where('membership_id',$this->membership)->where('permission','workforce.read')->delete();
+        $this->as(null)->open('preview',$link)->assertNotFound();
+        $this->newAccount($link)->assertNotFound();
+        $this->as($this->uid)->postJson($this->url("/$id/resend"),['version'=>1,'reason'=>'Retry'])->assertForbidden();
+        $this->grant($this->membership,$this->a,'workforce.read');
+        $this->postJson($this->url("/$id/resend"),['version'=>1,'reason'=>'Retry'])->assertOk();
+        $this->db()->table('company_grants')->where('membership_id',$this->membership)->where('permission','workforce.read')->delete();
+        $this->assertSame(['cancelled'],$this->deliver(),'prepare cancels sends from an inviter who no longer qualifies');
+        $this->assertCount(1,Mail::sent(InvitationMail::class));
+    }
+
+    public function test_removing_inviter_authority_cancels_their_pending_invitations(): void
+    {
+        $this->ready();
+        [$admin,$adminMembership]=$this->person('admin2@example.test',[$this->a=>['company.read','access.manage','workforce.read']]);
+        [$other,$otherMembership]=$this->person('admin3@example.test',[$this->a=>['company.read','access.manage','workforce.read']]);
+        $this->as($admin);
+        $kept=$this->invite('lee@example.test',['company.read'])->assertCreated()->json('data.id');
+        $dropped=$this->invite('max@example.test',['company.read','workforce.read'])->assertCreated()->json('data.id');
+        $this->as($other); $byOther=$this->invite('ned@example.test',['company.read','workforce.read'])->assertCreated()->json('data.id');
+        $this->assertSame(['delivered','delivered','delivered'],$this->deliver());
+        $link=collect(range(0,2))->map(fn($i)=>$this->link($i))->firstWhere('invitation',$dropped);
+        $this->as($this->uid)->putJson("/api/v1/companies/{$this->a}/access/$adminMembership",['version'=>1,'permissions'=>['company.read','access.manage'],'reason'=>'Narrowed'])->assertOk();
+        $status=fn($id)=>$this->db()->table('invitations')->where('id',$id)->value('status');
+        $this->assertSame(['pending','cancelled','pending'],[$status($kept),$status($dropped),$status($byOther)]);
+        $audit=$this->db()->table('audit_events')->where('action','invitation.cancelled')->sole();
+        $this->assertSame([$dropped,['cause'=>'inviter_access_removed'],'Narrowed',$this->uid],[$audit->resource_id,json_decode($audit->changes,true),$audit->reason,$audit->actor_id]);
+        $this->as(null)->open('preview',$link)->assertNotFound();
+        // Revoking the inviter's membership cancels everything they still have pending.
+        $this->as($this->uid)->postJson("/api/v1/companies/{$this->a}/access/$adminMembership/revoke-membership",['version'=>2,'reason'=>'Left'])->assertOk();
+        $this->assertSame(['cancelled','cancelled','pending'],[$status($kept),$status($dropped),$status($byOther)]);
     }
 
     public function test_runtime_cannot_write_memberships_and_definer_functions_are_pinned_and_private(): void
