@@ -7,9 +7,11 @@ final class PermissionCatalog
         'company.read'=>'View company',
         'company.manage'=>'Manage company name and timezone',
         'organization.read'=>'View organization',
-        'organization.write'=>'Manage departments, locations and positions',
+        'organization.write'=>'Manage departments, locations, positions and employment types',
         'workforce.read'=>'View employee directory and employment history',
         'workforce.write'=>'Create employees and change employment',
+        'profile.read'=>'View private employee profiles',
+        'profile.write'=>'Edit private employee profiles',
         'audit.read'=>'View company audit history',
         'access.manage'=>'Manage company permissions',
     ];

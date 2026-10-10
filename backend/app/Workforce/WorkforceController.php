@@ -15,7 +15,7 @@ use Illuminate\Validation\ValidationException;
 final class WorkforceController
 {
     use ScopesCompany;
-    private const KINDS = ['departments','locations','positions'];
+    private const KINDS = ['departments','locations','positions','employment_types'];
     private function page(Request $r, Builder $q): JsonResource
     {
         $r->validate(['page'=>'sometimes|integer|min:1','per_page'=>'sometimes|integer|min:1|max:100']);
@@ -71,25 +71,28 @@ final class WorkforceController
     }
     public function employee(string $company, string $id): array
     {
-        $this->company($company,'workforce.read'); abort_unless(Str::isUuid($id),404);
+        $row=$this->company($company,'workforce.read'); abort_unless(Str::isUuid($id),404);
         $person=$this->people($company)->where('e.id',$id)->first(['e.id','e.employee_number','e.legal_name','e.preferred_name']); abort_unless($person,404);
-        return ['data'=>['employee'=>$person,'employments'=>$this->rows('employments',$company)->where('employee_id',$id)->orderByDesc('start_date')->orderBy('id')->get(['id','employment_number','start_date','end_date','status','version','department_id','location_id','position_id'])]];
+        $employments=$this->rows('employments',$company)->where('employee_id',$id)->orderByDesc('start_date')->orderBy('id')->get(Assignments::EMPLOYMENT);
+        return ['data'=>['employee'=>$person,'employments'=>app(Assignments::class)->withCurrent($company,$employments,now($row->timezone)->toDateString())]];
     }
     private function employmentData(Request $r, string $company): array
     {
-        $data=$r->validate(['employment_number'=>'required|string|max:40|regex:/^[A-Za-z0-9_-]+$/','start_date'=>'required|date_format:Y-m-d','department_id'=>'nullable|uuid','location_id'=>'nullable|uuid','position_id'=>'nullable|uuid']);
+        $data=$r->validate(['employment_number'=>'required|string|max:40|regex:/^[A-Za-z0-9_-]+$/','start_date'=>'required|date_format:Y-m-d',
+            'probation_end_date'=>'nullable|date_format:Y-m-d|after_or_equal:start_date']+Assignments::rules('sometimes'));
         $data['employment_number']=strtoupper($data['employment_number']);
-        foreach(['department'=>'departments','location'=>'locations','position'=>'positions'] as $key=>$table) {
-            if(!empty($data[$key.'_id'])&&!$this->rows($table,$company)->where('id',$data[$key.'_id'])->where('archived',false)->sharedLock()->first()) { throw ValidationException::withMessages([$key.'_id'=>'Select an active record in this company.']); }
-        }
         if($this->rows('employments',$company)->where('employment_number',$data['employment_number'])->exists()) { throw ValidationException::withMessages(['employment_number'=>'This employment number is already in use.']); }
         return $data;
     }
+    /** The employment and its initial assignment at start_date are created together. A new employment has no reports, so no cycle check is needed. */
     private function insertEmployment(array $data, string $company, string $employee): string
     {
+        $assignments=app(Assignments::class); $refs=array_intersect_key($data,array_flip(Assignments::KEYS));
+        $assignments->check($company,$refs,$data['start_date'],$employee);
         $id=(string)Str::uuid();
-        DB::table('employments')->insert($data+['id'=>$id,'tenant_id'=>$this->tenant(),'company_id'=>$company,'employee_id'=>$employee,'created_at'=>now(),'updated_at'=>now()]);
-        Audit::record($company,'employment.created',$id,['employee_id'=>$employee,'status'=>'draft']); return $id;
+        DB::table('employments')->insert(array_diff_key($data,$refs)+['id'=>$id,'tenant_id'=>$this->tenant(),'company_id'=>$company,'employee_id'=>$employee,'created_at'=>now(),'updated_at'=>now()]);
+        $assignment=$assignments->insert($company,$id,$data['start_date'],$refs,null);
+        Audit::record($company,'employment.created',$id,['employee_id'=>$employee,'status'=>'draft','assignment_id'=>$assignment,'fields'=>array_keys(array_filter($data,fn($v)=>$v!==null))]); return $id;
     }
     public function createEmployee(Request $r, string $company)
     {
