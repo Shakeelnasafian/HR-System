@@ -255,6 +255,24 @@ class AssignmentTest extends FoundationFixture
         // Ended history does not block: after A1 ends, the rehired relationship can be managed by B again only if no live link closes the loop.
         $this->assertSame(0,DB::connection('fixture')->table('employment_assignments')->where('employment_id',$a1)->whereNotNull('manager_employment_id')->count());
     }
+    public function test_a_rehire_with_a_manager_cannot_close_a_cycle(): void
+    {
+        $this->ready(); $p=$this->person('P'); $b=$this->person('B')['employment_id'];
+        $this->assign($b,['effective_from'=>'2026-02-01','manager_employment_id'=>$p['employment_id']])->assertCreated();
+        $this->postJson($this->url('employees/'.$p['id'].'/employments'),['employment_number'=>'E-P2','start_date'=>'2026-03-01','manager_employment_id'=>$b])
+            ->assertUnprocessable()->assertJsonValidationErrors(['manager_employment_id'=>'cycle']);
+        $this->assertSame(1,DB::connection('fixture')->table('employments')->where('employee_id',$p['id'])->count());
+        $this->assertSame(0,DB::connection('fixture')->table('audit_events')->where('action','employment.created')->where('resource_id','<>',$p['employment_id'])->where('resource_id','<>',$b)->count());
+    }
+    public function test_links_to_ended_manager_employments_do_not_form_cycles(): void
+    {
+        $this->ready(); $q=$this->person('Q'); $q1=$q['employment_id']; $b=$this->person('B')['employment_id'];
+        $this->assign($b,['effective_from'=>'2026-02-01','manager_employment_id'=>$q1])->assertCreated();
+        $this->postJson($this->url("employments/$q1/activate"),['version'=>1,'reason'=>'Start'])->assertOk();
+        $this->postJson($this->url("employments/$q1/end"),['version'=>2,'reason'=>'Leaver','end_date'=>'2026-05-01'])->assertOk();
+        // B still points at Q1, but Q1 no longer covers June: rehiring Q under B is not a loop.
+        $this->postJson($this->url('employees/'.$q['id'].'/employments'),['employment_number'=>'E-Q2','start_date'=>'2026-06-01','manager_employment_id'=>$b])->assertCreated();
+    }
     public function test_copied_references_must_still_be_active(): void
     {
         $this->ready(); $dept=$this->org('departments','OLD'); $pos=$this->org('positions','NEW');

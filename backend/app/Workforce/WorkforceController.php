@@ -84,7 +84,7 @@ final class WorkforceController
         if($this->rows('employments',$company)->where('employment_number',$data['employment_number'])->exists()) { throw ValidationException::withMessages(['employment_number'=>'This employment number is already in use.']); }
         return $data;
     }
-    /** The employment and its initial assignment at start_date are created together. A new employment has no reports, so no cycle check is needed. */
+    /** The employment and its initial assignment at start_date are created together. Rehires with a manager also need rehire()'s cycle check. */
     private function insertEmployment(array $data, string $company, string $employee): string
     {
         $assignments=app(Assignments::class); $refs=array_intersect_key($data,array_flip(Assignments::KEYS));
@@ -110,9 +110,13 @@ final class WorkforceController
     public function rehire(Request $r, string $company, string $id)
     {
         $this->company($company,'workforce.write'); abort_unless(Str::isUuid($id),404);
+        $assignments=app(Assignments::class); $reporting=!empty($r->input('manager_employment_id'));
+        if($reporting) { $assignments->lockReportingLines($company); } // before the person lock, as for assignment changes
         abort_unless($this->people($company)->where('e.id',$id)->lockForUpdate()->first(),404);
         $data=$this->employmentData($r,$company);
         $employment=$this->insertEmployment($data,$company,$id);
+        // The person may already manage someone through another employment, so a manager here can close a cycle between people.
+        if($reporting) { $assignments->assertAcyclic($company,$employment,$data['start_date'],null); }
         return response()->json(['data'=>['id'=>$employment]],201);
     }
     public function transition(Request $r, string $company, string $id, string $action): array
