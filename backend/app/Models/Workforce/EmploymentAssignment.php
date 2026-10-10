@@ -83,4 +83,27 @@ class EmploymentAssignment extends Model
     {
         $query->where('effective_from', '<=', $date);
     }
+
+    /**
+     * Rows with the referenced records' codes and names and the manager's safe directory fields (never profile data),
+     * newest first. Joins stay explicit: one row per assignment with aliased reference columns.
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeWithDirectory(Builder $query): void
+    {
+        $query->select(array_map(fn ($column) => "employment_assignments.$column", ['id', 'employment_id', 'effective_from', 'reason', 'created_at', ...self::KEYS]));
+        foreach (self::REFERENCES as $key => $model) {
+            $alias = 'r_'.$key;
+            $query->leftJoin((new $model)->getTable()." as $alias", fn ($j) => $j->on("$alias.tenant_id", '=', 'employment_assignments.tenant_id')
+                ->on("$alias.company_id", '=', 'employment_assignments.company_id')->on("$alias.id", '=', "employment_assignments.$key"))
+                ->addSelect(["$alias.code as {$key}_code", "$alias.name as {$key}_name"]);
+        }
+        $query->leftJoin('employments as mgr', fn ($j) => $j->on('mgr.tenant_id', '=', 'employment_assignments.tenant_id')->on('mgr.company_id', '=', 'employment_assignments.company_id')
+            ->on('mgr.id', '=', 'employment_assignments.manager_employment_id'))
+            ->leftJoin('employees as mgr_person', fn ($j) => $j->on('mgr_person.tenant_id', '=', 'mgr.tenant_id')->on('mgr_person.id', '=', 'mgr.employee_id'))
+            ->addSelect(['mgr.employment_number as manager_employment_number', 'mgr.employee_id as manager_employee_id', 'mgr_person.employee_number as manager_employee_number',
+                'mgr_person.legal_name as manager_legal_name', 'mgr_person.preferred_name as manager_preferred_name'])
+            ->orderByDesc('employment_assignments.effective_from')->orderBy('employment_assignments.id');
+    }
 }
