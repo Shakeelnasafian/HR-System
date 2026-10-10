@@ -49,16 +49,6 @@ final class CompanyAccess
         return Str::isUuid($company) && $this->query($permission)->whereKey($company)->exists();
     }
 
-    /**
-     * Query builder form of query() for callers that still select raw rows.
-     *
-     * @deprecated Use query() or find(); removed once every module uses models.
-     */
-    public function readable(string $permission = 'company.read'): QueryBuilder
-    {
-        return $this->query($permission)->toBase();
-    }
-
     private function grants(QueryBuilder $q, string $permission): QueryBuilder
     {
         return $q->from('company_grants as g')->join('tenant_memberships as m', 'm.id', '=', 'g.membership_id')

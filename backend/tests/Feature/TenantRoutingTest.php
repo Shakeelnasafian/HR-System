@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Tenancy\Company;
+use App\Models\Tenancy\CompanyGrant;
 use App\Models\Workforce\Employee;
 use App\Services\Tenancy\TenantContext;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use LogicException;
 use Tests\Support\FoundationFixture;
@@ -26,6 +28,27 @@ class TenantRoutingTest extends FoundationFixture
     {
         $this->expectException(LogicException::class);
         Employee::query()->count();
+    }
+
+    public function test_model_updates_and_deletes_also_match_the_context_tenant(): void
+    {
+        $writes = [];
+        DB::listen(function ($query) use (&$writes) {
+            if (preg_match('/^(update|delete)/i', $query->sql)) {
+                $writes[] = [$query->sql, $query->bindings];
+            }
+        });
+        app(TenantContext::class)->run($this->t1, $this->uid, function () {
+            $company = Company::query()->findOrFail($this->a);
+            $company->name = 'Renamed';
+            $company->save();
+            CompanyGrant::query()->where('company_id', $this->a)->firstOrFail()->delete();
+        });
+        $this->assertCount(2, $writes);
+        foreach ($writes as [$sql, $bindings]) {
+            $this->assertStringContainsString('"tenant_id" = ?', $sql);
+            $this->assertContains($this->t1, $bindings);
+        }
     }
 
     public function test_tenant_models_are_limited_to_the_context_tenant(): void
