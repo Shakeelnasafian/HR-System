@@ -24,7 +24,7 @@ class OutboxTest extends \Tests\Support\FoundationFixture
     protected function setUp(): void
     {
         parent::setUp();
-        config(['outbox.handlers' => ['test.probe' => OutboxProbeHandler::class]]);
+        config(['outbox.handlers' => ['test.probe' => OutboxProbeHandler::class], 'outbox.system_context' => true]);
     }
     protected function tearDown(): void
     {
@@ -66,6 +66,7 @@ class OutboxTest extends \Tests\Support\FoundationFixture
         $this->assertSame(0, DB::connection('fixture')->table('outbox_events')->count());
         $first = $this->record($this->t1, 'ok', null, 'same-key');
         $this->assertSame($first, $this->record($this->t1, 'cancel', null, 'same-key'));
+        $this->assertThrows(fn () => $this->record($this->t1, 'ok', null, 'same-key', 'test.other'), \LogicException::class, 'another event type');
         $other = $this->record($this->t2, 'ok', null, 'same-key');
         $this->assertNotSame($first, $other);
         $this->assertSame(2, DB::connection('fixture')->table('outbox_events')->count());
@@ -109,6 +110,8 @@ class OutboxTest extends \Tests\Support\FoundationFixture
         try {
             $this->assertThrows(fn () => $context->runSystem($this->t1, fn () => null), \LogicException::class, 'reserved for console');
         } finally { $console->setValue(app(), null); }
+        config(['outbox.system_context' => false]); // web processes never opt in, even when they report a console SAPI
+        $this->assertThrows(fn () => $context->runSystem($this->t1, fn () => null), \LogicException::class, 'reserved for console');
     }
     public function test_concurrent_relays_claim_each_event_exactly_once(): void
     {
@@ -168,7 +171,7 @@ class OutboxTest extends \Tests\Support\FoundationFixture
         $this->assertSame(['failed', 3, null], [$this->event($id)->status, $this->event($id)->attempts, $this->event($id)->lease_until]);
         $this->assertSame([[1, 'retry', true], [2, 'retry', true], [3, 'failed', true]], $this->attempts($id));
         $this->assertSame(0, DB::connection('fixture')->table('outbox_attempts')->where('error', 'like', '%alice%')->count());
-        Log::shouldHaveReceived('critical')->once()->with('Outbox event failed permanently.', ['event_id'=>$id, 'type'=>'test.probe']);
+        Log::shouldHaveReceived('critical')->once()->with('Outbox event failed permanently.', ['tenant_id'=>$this->t1, 'event_id'=>$id, 'type'=>'test.probe']);
         $this->makeDue($id);
         $this->assertSame([], $this->relayAndDeliver());
 
@@ -196,18 +199,51 @@ class OutboxTest extends \Tests\Support\FoundationFixture
         $this->assertSame('stale', $delivery->run($this->t1, $id, 2), 'A duplicate of the acknowledged attempt is a no-op too.');
         $this->assertSame('stale', $delivery->run($this->t2, $id, 2), 'Another tenant cannot address the event.');
         $this->assertCount(1, file($path));
-        $this->assertSame([[1, null, false], [2, 'delivered', true]], $this->attempts($id));
+        $this->assertSame([[1, 'abandoned', true], [2, 'delivered', true]], $this->attempts($id));
+    }
+    public function test_a_job_whose_lease_is_nearly_expired_does_not_start_delivery(): void
+    {
+        config(['outbox.prepare_margin'=>30]);
+        $id = $this->record($this->t1, 'ok', $path = $this->path());
+        Queue::fake(); app(OutboxRelay::class)->run();
+        DB::connection('fixture')->table('outbox_events')->where('id', $id)->update(['lease_until'=>DB::raw("now() + interval '10 seconds'")]);
+        $this->assertSame('stale', app(OutboxDelivery::class)->run($this->t1, $id, 1));
+        $this->assertFileDoesNotExist($path);
+        $this->assertSame([[1, null, false]], $this->attempts($id));
+        config(['outbox.prepare_margin'=>5]);
+        $this->assertSame('delivered', app(OutboxDelivery::class)->run($this->t1, $id, 1));
+    }
+    /** Claims the event and runs it in a real worker process that dies after the receiver saw it, before the ack. */
+    private function crashOnce(string $id): void
+    {
+        $queue = 'outbox-'.Str::uuid(); config(['outbox.queue'=>$queue]);
+        try {
+            $this->assertSame(1, app(OutboxRelay::class)->run());
+            $worker = new Process([PHP_BINARY, 'tests/Support/outbox-worker.php', $queue], base_path(), ['APP_ENV'=>'testing']);
+            $worker->setTimeout(60); $worker->run();
+            $this->assertSame(3, $worker->getExitCode(), $worker->getErrorOutput());
+        } finally { app('queue')->connection('redis')->clear($queue); config(['outbox.queue'=>null]); }
+    }
+    public function test_crash_on_the_last_attempt_fails_and_alerts_after_lease_expiry(): void
+    {
+        config(['outbox.max_attempts'=>1]);
+        $id = $this->record($this->t1, 'crash-once', $path = $this->path());
+        $this->crashOnce($id);
+        Log::spy();
+        $this->assertSame([], $this->relayAndDeliver(), 'Still leased to the crashed attempt.');
+        Log::shouldNotHaveReceived('critical');
+        $this->makeDue($id, 'lease_until');
+        $this->assertSame([], $this->relayAndDeliver());
+        $event = $this->event($id);
+        $this->assertSame(['failed', 1, null], [$event->status, $event->attempts, $event->lease_until]);
+        $this->assertSame([[1, 'abandoned', true]], $this->attempts($id));
+        $this->assertCount(1, file($path));
+        Log::shouldHaveReceived('critical')->once()->with('Outbox event failed permanently.', ['tenant_id'=>$this->t1, 'event_id'=>$id, 'type'=>'test.probe']);
     }
     public function test_crash_between_delivery_and_ack_is_redelivered_after_lease_expiry(): void
     {
         $id = $this->record($this->t1, 'crash-once', $path = $this->path());
-        $queue = 'outbox-'.Str::uuid(); config(['outbox.queue'=>$queue]);
-        try {
-            app(OutboxRelay::class)->run();
-            $worker = new Process([PHP_BINARY, 'tests/Support/outbox-worker.php', $queue], base_path(), ['APP_ENV'=>'testing']);
-            $worker->setTimeout(60); $worker->run();
-            $this->assertSame(3, $worker->getExitCode(), $worker->getErrorOutput());
-        } finally { app('queue')->connection('redis')->clear($queue); }
+        $this->crashOnce($id);
         $this->assertCount(1, file($path));
         $this->assertSame([[1, null, false]], $this->attempts($id));
         $this->assertSame('pending', $this->event($id)->status);
@@ -216,7 +252,7 @@ class OutboxTest extends \Tests\Support\FoundationFixture
         $this->assertSame(['delivered'], $this->relayAndDeliver());
         $lines = array_map(fn ($l) => json_decode($l, true), file($path));
         $this->assertSame([[$id, 1], [$id, 2]], array_map(fn ($l) => [$l['event'], $l['attempt']], $lines), 'Receivers see the same event id twice and deduplicate on it.');
-        $this->assertSame([[1, null, false], [2, 'delivered', true]], $this->attempts($id));
+        $this->assertSame([[1, 'abandoned', true], [2, 'delivered', true]], $this->attempts($id));
     }
     public function test_long_lived_worker_alternating_tenants_does_not_leak_context(): void
     {

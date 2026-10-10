@@ -22,7 +22,7 @@ return new class extends Migration {
         DB::statement("CREATE TABLE outbox_attempts (
             id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, tenant_id uuid NOT NULL, event_id uuid NOT NULL, attempt integer NOT NULL CHECK (attempt > 0),
             started_at timestamp(6) with time zone NOT NULL DEFAULT clock_timestamp(), finished_at timestamp(6) with time zone NULL,
-            outcome varchar(16) NULL CHECK (outcome IN ('delivered', 'retry', 'failed', 'cancelled')), error varchar(500) NULL,
+            outcome varchar(16) NULL CHECK (outcome IN ('delivered', 'retry', 'failed', 'cancelled', 'abandoned')), error varchar(500) NULL,
             FOREIGN KEY (tenant_id, event_id) REFERENCES outbox_events (tenant_id, id), UNIQUE (event_id, attempt),
             CHECK ((outcome IS NULL) = (finished_at IS NULL)))");
         foreach (['outbox_events', 'outbox_attempts'] as $table) {

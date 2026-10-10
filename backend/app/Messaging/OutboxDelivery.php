@@ -20,7 +20,7 @@ final class OutboxDelivery
         $prepared = null;
         try {
             [$event, $handler, $prepared] = $this->context->runSystem($tenant, function () use ($eventId, $attempt) {
-                $event = $this->current($eventId, $attempt);
+                $event = $this->current($eventId, $attempt, false);
                 if (! $event) { return [null, null, null]; }
                 $class = config('outbox.handlers')[$event->type] ?? null; // types contain dots: no config() dot lookup
                 if (! is_string($class) || ! is_subclass_of($class, OutboxHandler::class)) { return [$event, null, null]; }
@@ -42,13 +42,17 @@ final class OutboxDelivery
         return $this->finish($tenant, $eventId, $attempt, 'delivered');
     }
 
-    /** Locks the event row only when it is still pending and leased for this attempt. */
-    private function current(string $eventId, int $attempt, bool $lock = false): ?object
+    /**
+     * The event only while it is still pending and leased for this attempt. Prepare additionally needs the lease to outlive
+     * a safety margin, so a job that sat in the queue past its lease cannot deliver concurrently with a re-claim.
+     * The ack (locked) accepts an expired lease as long as no newer attempt has claimed the event.
+     */
+    private function current(string $eventId, int $attempt, bool $ack): ?object
     {
         $q = DB::table('outbox_events')->where('tenant_id', $this->context->id())->where('id', $eventId)->where('status', 'pending')
             ->where('attempts', $attempt)->whereNotNull('lease_until')
             ->select('id', 'tenant_id', 'company_id', 'type', 'payload', 'actor_id', 'correlation_id', 'attempts as attempt');
-        $event = ($lock ? $q->lockForUpdate() : $q)->first();
+        $event = ($ack ? $q->lockForUpdate() : $q->whereRaw('lease_until > clock_timestamp() + make_interval(secs => ?)', [max(0, (int) config('outbox.prepare_margin'))]))->first();
         if ($event) { $event->payload = json_decode($event->payload, true, 4, JSON_THROW_ON_ERROR); }
         return $event;
     }
@@ -78,7 +82,7 @@ final class OutboxDelivery
             return $outcome;
         });
         if ($result === 'failed') {
-            Log::critical('Outbox event failed permanently.', ['event_id'=>$eventId, 'type'=>$type]);
+            Log::critical('Outbox event failed permanently.', ['tenant_id'=>$tenant, 'event_id'=>$eventId, 'type'=>$type]);
         } elseif ($result === 'retry') {
             Log::warning('Outbox delivery attempt failed; retry scheduled.', ['event_id'=>$eventId, 'type'=>$type, 'attempt'=>$attempt, 'error'=>$error]);
         }

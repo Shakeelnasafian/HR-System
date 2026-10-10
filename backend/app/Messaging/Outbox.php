@@ -13,6 +13,7 @@ final class Outbox
     /**
      * Payload values must be scalar identifiers/flags (or null): no names, contact data or nested structures, because
      * handlers reload authorized data when they run. Idempotent per (tenant, dedupe_key); returns the event id.
+     * Re-recording a key with a different payload silently keeps the original; a different type throws.
      */
     public static function record(string $type, array $payload, string $dedupeKey, ?string $company = null): string
     {
@@ -30,6 +31,10 @@ final class Outbox
             $id, $tenant, $company, $type, json_encode((object) $payload, JSON_THROW_ON_ERROR), $dedupeKey,
             $context->isSystem() ? null : $context->userId(), app(RequestId::class)->current(),
         ]);
-        return $inserted ? $id : DB::table('outbox_events')->where('tenant_id', $tenant)->where('dedupe_key', $dedupeKey)->value('id');
+        if ($inserted) { return $id; }
+        // A replay keeps the first event as recorded: a differing payload/company is ignored, a differing type is a key collision.
+        $existing = DB::table('outbox_events')->where('tenant_id', $tenant)->where('dedupe_key', $dedupeKey)->select('id', 'type')->first();
+        if ($existing->type !== $type) { throw new LogicException('Outbox dedupe key already used for another event type.'); }
+        return $existing->id;
     }
 }

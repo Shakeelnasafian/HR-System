@@ -47,7 +47,11 @@ final class TenantContext
      */
     public function runSystem(string $tenantId, Closure $work): mixed
     {
-        if (! app()->runningInConsole()) { throw new LogicException('System tenant context is reserved for console and queue workers.'); }
+        // Two independent gates: an explicit per-process opt-in (HR_SYSTEM_CONTEXT, set only on worker/scheduler) and the
+        // console SAPI check. Octane (or APP_RUNNING_IN_CONSOLE overrides) is NOT supported without revisiting this guard.
+        if (! config('outbox.system_context') || ! app()->runningInConsole()) {
+            throw new LogicException('System tenant context is reserved for console and queue workers.');
+        }
         if ($this->tenantId !== null || DB::transactionLevel() !== 0) {
             throw new LogicException('A tenant boundary must start outside any existing transaction.');
         }

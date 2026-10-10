@@ -9,6 +9,10 @@ return [
     'backoff_max' => (int) env('OUTBOX_BACKOFF_MAX', 3600),
     // Must exceed queue latency plus handler run time; an expired lease is re-claimed (at-least-once delivery).
     'lease_seconds' => (int) env('OUTBOX_LEASE_SECONDS', 300),
+    // A job may start prepare only while its lease outlives this margin (seconds); keep it well below lease_seconds.
+    'prepare_margin' => (int) env('OUTBOX_PREPARE_MARGIN', 30),
+    // TenantContext::runSystem opt-in: set HR_SYSTEM_CONTEXT=true only on queue worker and scheduler processes, never web.
+    'system_context' => (bool) env('HR_SYSTEM_CONTEXT', false),
     'batch' => (int) env('OUTBOX_BATCH', 50),
     'max_per_tenant' => (int) env('OUTBOX_MAX_PER_TENANT', 500),
 ];

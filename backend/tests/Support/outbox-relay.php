@@ -4,7 +4,7 @@ require __DIR__.'/../../vendor/autoload.php';
 $app = require __DIR__.'/../../bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 [$script, $queue, $barrier] = $argv;
-config(['outbox.queue' => $queue]);
+config(['outbox.queue' => $queue, 'outbox.system_context' => true]);
 file_put_contents($barrier.'.'.getmypid(), 'ready');
 $deadline = microtime(true) + 15;
 while (!file_exists($barrier)) {
