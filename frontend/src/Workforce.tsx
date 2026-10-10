@@ -3,32 +3,26 @@ import { api, csrf, type Company } from "./api";
 import { Access } from "./Access";
 import { Calendars } from "./Calendars";
 import { CompanySettings } from "./CompanySettings";
+import { ProfileFieldSettings } from "./ProfileFields";
+import { ProfilePanel } from "./Profile";
+import {
+  AssignmentHistory,
+  AssignmentSummary,
+  ChangeAssignmentForm,
+  ProbationForm,
+} from "./Assignments";
+import {
+  loadActiveOrg,
+  orgKindLabels,
+  orgKinds as kinds,
+  toEmployment,
+  type Employment,
+  type Org,
+  type OrgKind as Kind,
+  type Page,
+  type Person,
+} from "./workforceApi";
 
-type Page<T> = {
-  data: T[];
-  meta: { current_page: number; last_page: number; total: number };
-};
-type Org = {
-  id: string;
-  code: string;
-  name: string;
-  archived: boolean;
-  version: number;
-};
-type Person = {
-  id: string;
-  employee_number: string;
-  legal_name: string;
-  preferred_name: string | null;
-};
-type Employment = {
-  id: string;
-  employment_number: string;
-  start_date: string;
-  end_date: string | null;
-  status: string;
-  version: number;
-};
 type Detail = { employee: Person; employments: Employment[] };
 type Event = {
   id: string;
@@ -38,8 +32,6 @@ type Event = {
   occurred_at: string;
   reason: string | null;
 };
-const kinds = ["departments", "locations", "positions"] as const;
-type Kind = (typeof kinds)[number];
 function ErrorBox({ error }: { error: string }) {
   return error ? (
     <p role="alert" className="error">
@@ -171,6 +163,8 @@ export function CompanyWorkspace({
               base={base}
               canWrite={permissions.includes("workforce.write")}
               canReadOrg={permissions.includes("organization.read")}
+              canReadProfile={permissions.includes("profile.read")}
+              canWriteProfile={permissions.includes("profile.write")}
             />
           ) : tab === "organization" &&
             permissions.includes("organization.read") ? (
@@ -187,14 +181,17 @@ export function CompanyWorkspace({
               canWrite={permissions.includes("organization.write")}
             />
           ) : tab === "settings" && permissions.includes("company.manage") ? (
-            <CompanySettings
-              tenant={tenant}
-              base={base}
-              onSaved={(c) => {
-                setCompanyName(c.name);
-                onRenamed?.(c.name);
-              }}
-            />
+            <>
+              <CompanySettings
+                tenant={tenant}
+                base={base}
+                onSaved={(c) => {
+                  setCompanyName(c.name);
+                  onRenamed?.(c.name);
+                }}
+              />
+              <ProfileFieldSettings tenant={tenant} base={base} />
+            </>
           ) : tab === "audit" && permissions.includes("audit.read") ? (
             <AuditHistory tenant={tenant} base={base} />
           ) : tab === "access" && permissions.includes("access.manage") ? (
@@ -229,7 +226,7 @@ function Organization({
         <select value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
           {kinds.map((k) => (
             <option key={k} value={k}>
-              {k[0].toUpperCase() + k.slice(1)}
+              {orgKindLabels[k].plural}
             </option>
           ))}
         </select>
@@ -315,7 +312,11 @@ function OrganizationList({
           onSubmit={save}
           key={editing?.id ?? "new"}
         >
-          <h3>{editing ? "Edit record" : "Add " + kind.slice(0, -1)}</h3>
+          <h3>
+            {editing
+              ? "Edit record"
+              : "Add " + orgKindLabels[kind].singular.toLowerCase()}
+          </h3>
           {!editing && (
             <label>
               Code
@@ -393,7 +394,9 @@ function OrganizationList({
               </tbody>
             </table>
           </div>
-          {!rows.data.length && <p>No {kind} yet.</p>}
+          {!rows.data.length && (
+            <p>No {orgKindLabels[kind].plural.toLowerCase()} yet.</p>
+          )}
           <Pager
             page={rows.meta}
             setPage={(n) => {
@@ -413,11 +416,15 @@ function People({
   base,
   canWrite,
   canReadOrg,
+  canReadProfile,
+  canWriteProfile,
 }: {
   tenant: string;
   base: string;
   canWrite: boolean;
   canReadOrg: boolean;
+  canReadProfile: boolean;
+  canWriteProfile: boolean;
 }) {
   const [rows, setRows] = useState<Page<Person> | null>(null),
     [page, setPage] = useState(1),
@@ -449,6 +456,8 @@ function People({
         id={selected}
         canWrite={canWrite}
         canReadOrg={canReadOrg}
+        canReadProfile={canReadProfile}
+        canWriteProfile={canWriteProfile}
         onBack={() => {
           setSelected("");
           setRevision((n) => n + 1);
@@ -560,20 +569,8 @@ function EmploymentForm({
   useEffect(() => {
     if (!canReadOrg) return;
     const c = new AbortController();
-    async function all(kind: Kind) {
-      const rows: Org[] = [];
-      let page = 1;
-      while (!c.signal.aborted) {
-        const r = await api<Page<Org>>(
-          `${base}/organization/${kind}?per_page=100&page=${page}`,
-          { tenant, signal: c.signal },
-        );
-        rows.push(...r.data.filter((x) => !x.archived));
-        if (page >= r.meta.last_page) break;
-        page++;
-      }
-      return [kind, rows] as const;
-    }
+    const all = async (kind: Kind) =>
+      [kind, await loadActiveOrg(base, tenant, kind, c.signal)] as const;
     Promise.all(kinds.map(all))
       .then((entries) => {
         if (!c.signal.aborted) setOptions(Object.fromEntries(entries));
@@ -585,7 +582,10 @@ function EmploymentForm({
   }, [base, tenant, canReadOrg]);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const values = Object.fromEntries(new FormData(e.currentTarget));
+    // Empty optional fields are omitted rather than sent as empty strings.
+    const values = Object.fromEntries(
+      [...new FormData(e.currentTarget)].filter(([, v]) => v !== ""),
+    );
     setError("");
     setBusy(true);
     try {
@@ -647,7 +647,7 @@ function EmploymentForm({
       {canReadOrg &&
         kinds.map((k) => (
           <label key={k}>
-            {k[0].toUpperCase() + k.slice(1, -1)}
+            {orgKindLabels[k].singular}
             <select name={`${k.slice(0, -1)}_id`} defaultValue="">
               <option value="">Not assigned</option>
               {options[k]?.map((o) => (
@@ -658,6 +658,10 @@ function EmploymentForm({
             </select>
           </label>
         ))}
+      <label>
+        Probation end date (optional)
+        <input name="probation_end_date" type="date" />
+      </label>
       <ErrorBox error={error} />
       <button disabled={busy}>{busy ? "Saving…" : "Create draft"}</button>
     </form>
@@ -669,6 +673,8 @@ function EmployeeDetail({
   id,
   canWrite,
   canReadOrg,
+  canReadProfile,
+  canWriteProfile,
   onBack,
 }: {
   tenant: string;
@@ -676,6 +682,8 @@ function EmployeeDetail({
   id: string;
   canWrite: boolean;
   canReadOrg: boolean;
+  canReadProfile: boolean;
+  canWriteProfile: boolean;
   onBack: () => void;
 }) {
   const [detail, setDetail] = useState<Detail | null>(null),
@@ -686,15 +694,25 @@ function EmployeeDetail({
       employment: Employment;
       name: string;
     } | null>(null),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [editor, setEditor] = useState<{
+      employment: string;
+      kind: "assignment" | "probation";
+    } | null>(null),
+    [history, setHistory] = useState<string[]>([]),
+    [notice, setNotice] = useState("");
   useEffect(() => {
     const c = new AbortController();
-    api<{ data: Detail }>(`${base}/employees/${id}`, {
-      tenant,
-      signal: c.signal,
-    })
+    api<{ data: { employee: Person; employments: unknown[] } }>(
+      `${base}/employees/${id}`,
+      { tenant, signal: c.signal },
+    )
       .then((r) => {
-        if (!c.signal.aborted) setDetail(r.data);
+        if (!c.signal.aborted)
+          setDetail({
+            employee: r.data.employee,
+            employments: r.data.employments.map(toEmployment),
+          });
       })
       .catch((e) => {
         if (!c.signal.aborted) setError(e.message);
@@ -741,6 +759,17 @@ function EmployeeDetail({
               ? " · " + detail.employee.preferred_name
               : ""}
           </p>
+          {canReadProfile && (
+            <ProfilePanel
+              tenant={tenant}
+              base={base}
+              employeeId={id}
+              canWrite={canWriteProfile}
+            />
+          )}
+          <p role="status" aria-live="polite">
+            {notice}
+          </p>
           <div className="section-heading">
             <h3>Employment history</h3>
             {canWrite && (
@@ -771,6 +800,94 @@ function EmployeeDetail({
                 {job.start_date} →{" "}
                 {job.end_date ? job.end_date + " (exclusive)" : "No end date"}
               </p>
+              <p>Probation ends: {job.probation_end_date ?? "Not set"}</p>
+              <h4>Current assignment</h4>
+              <AssignmentSummary assignment={job.current_assignment} />
+              <div className="actions">
+                <button
+                  className="secondary"
+                  aria-expanded={history.includes(job.id)}
+                  onClick={() =>
+                    setHistory((h) =>
+                      h.includes(job.id)
+                        ? h.filter((x) => x !== job.id)
+                        : [...h, job.id],
+                    )
+                  }
+                >
+                  {history.includes(job.id) ? "Hide" : "Show"} assignment
+                  history for {job.employment_number}
+                </button>
+                {canWrite &&
+                  (job.status === "active" || job.status === "draft") && (
+                    <>
+                      <button
+                        className="secondary"
+                        aria-expanded={
+                          editor?.employment === job.id &&
+                          editor.kind === "assignment"
+                        }
+                        onClick={() => {
+                          setNotice("");
+                          setEditor({ employment: job.id, kind: "assignment" });
+                        }}
+                      >
+                        Change assignment
+                      </button>
+                      <button
+                        className="secondary"
+                        aria-expanded={
+                          editor?.employment === job.id &&
+                          editor.kind === "probation"
+                        }
+                        onClick={() => {
+                          setNotice("");
+                          setEditor({ employment: job.id, kind: "probation" });
+                        }}
+                      >
+                        Edit probation end date
+                      </button>
+                    </>
+                  )}
+              </div>
+              {history.includes(job.id) && (
+                <AssignmentHistory
+                  key={job.version}
+                  tenant={tenant}
+                  base={base}
+                  employmentId={job.id}
+                />
+              )}
+              {editor?.employment === job.id &&
+                (editor.kind === "assignment" ? (
+                  <ChangeAssignmentForm
+                    tenant={tenant}
+                    base={base}
+                    employeeId={id}
+                    employment={job}
+                    canReadOrg={canReadOrg}
+                    onReload={() => setRevision((n) => n + 1)}
+                    onCancel={() => setEditor(null)}
+                    onSaved={() => {
+                      setEditor(null);
+                      setNotice("Assignment saved.");
+                      setRevision((n) => n + 1);
+                    }}
+                  />
+                ) : (
+                  <ProbationForm
+                    tenant={tenant}
+                    base={base}
+                    employment={job}
+                    onReload={() => setRevision((n) => n + 1)}
+                    onCancel={() => setEditor(null)}
+                    onSaved={() => {
+                      setEditor(null);
+                      setNotice("Probation end date saved.");
+                      setRevision((n) => n + 1);
+                    }}
+                  />
+                ))}
               {canWrite && (
                 <div className="actions">
                   {(job.status === "draft"
