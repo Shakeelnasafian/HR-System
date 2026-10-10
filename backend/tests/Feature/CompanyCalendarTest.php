@@ -163,18 +163,44 @@ class CompanyCalendarTest extends FoundationFixture
         $this->assertSame(1,DB::connection('fixture')->table('calendar_patterns')->count());
         // Removal: version-checked, scoped to the calendar, audited with the date (never the name).
         $hid=$holiday->json('data.id');
-        $this->deleteJson($this->url("calendars/$id/holidays/$hid"),['version'=>3,'reason'=>'Stale'])->assertConflict();
-        $this->deleteJson($this->url("calendars/$id/holidays/$hid"),['version'=>4])->assertUnprocessable();
-        $this->deleteJson($this->url("calendars/$id/holidays/".Str::uuid()),['version'=>4,'reason'=>'Unknown'])->assertNotFound();
-        $removed=$this->deleteJson($this->url("calendars/$id/holidays/$hid"),['version'=>4,'reason'=>'Not observed'])->assertOk()->assertExactJson(['data'=>['id'=>$hid,'removed'=>true]]);
-        $this->deleteJson($this->url("calendars/$id/holidays/$hid"),['version'=>5,'reason'=>'Again'])->assertNotFound();
+        $this->deleteJson($this->url("calendars/$id/holidays/$hid"),['version'=>4,'reason'=>'Archived'])->assertConflict(); // archived calendars are frozen
+        $this->assertTrue(DB::connection('fixture')->table('calendar_holidays')->where('id',$hid)->exists());
+        $this->patchJson($this->url("calendars/$id"),['version'=>4,'reason'=>'Restored','archived'=>false])->assertOk()->assertJsonPath('data.version',5);
+        $other=$this->calendar(['code'=>'OTH','name'=>'Other'])['id'];
+        $foreign=$this->postJson($this->url("calendars/$other/holidays"),['version'=>1,'reason'=>'Other','holiday_date'=>'2026-12-25','name'=>'Synthetic Other'])->assertCreated()->json('data.id');
+        $this->deleteJson($this->url("calendars/$id/holidays/$foreign"),['version'=>5,'reason'=>'Wrong calendar'])->assertNotFound();
+        $this->assertTrue(DB::connection('fixture')->table('calendar_holidays')->where('id',$foreign)->exists());
+        $this->deleteJson($this->url("calendars/$id/holidays/$hid"),['version'=>4,'reason'=>'Stale'])->assertConflict();
+        $this->deleteJson($this->url("calendars/$id/holidays/$hid"),['version'=>5])->assertUnprocessable();
+        $this->deleteJson($this->url("calendars/$id/holidays/".Str::uuid()),['version'=>5,'reason'=>'Unknown'])->assertNotFound();
+        $removed=$this->deleteJson($this->url("calendars/$id/holidays/$hid"),['version'=>5,'reason'=>'Not observed'])->assertOk()->assertExactJson(['data'=>['id'=>$hid,'removed'=>true]]);
+        $this->deleteJson($this->url("calendars/$id/holidays/$hid"),['version'=>6,'reason'=>'Again'])->assertNotFound();
         $this->assertFalse(DB::connection('fixture')->table('calendar_holidays')->where('id',$hid)->exists());
         $audit=$this->audits('calendar.holiday_removed')->first();
         $this->assertSame(['code'=>'std','holiday_id'=>$hid,'holiday_date'=>'2026-12-25'],json_decode($audit->changes,true));
         $this->assertSame(['Not observed',$removed->headers->get('X-Request-ID'),$id],[$audit->reason,$audit->correlation_id,$audit->resource_id]);
-        $this->assertSame(['calendar.created','calendar.holiday_added','calendar.holiday_added','calendar.updated','calendar.holiday_removed'],DB::connection('fixture')->table('audit_events')->orderBy('seq')->pluck('action')->all());
+        $this->assertSame(['calendar.created','calendar.holiday_added','calendar.holiday_added','calendar.updated','calendar.updated','calendar.created','calendar.holiday_added','calendar.holiday_removed'],
+            DB::connection('fixture')->table('audit_events')->orderBy('seq')->pluck('action')->all());
         $this->assertStringNotContainsString('Synthetic',DB::connection('fixture')->table('audit_events')->pluck('changes')->toJson());
-        $this->assertSame(5,DB::connection('fixture')->table('working_calendars')->where('id',$id)->value('version'));
+        $this->assertSame(6,DB::connection('fixture')->table('working_calendars')->where('id',$id)->value('version'));
+    }
+    public function test_timezone_list_is_the_server_validation_set(): void
+    {
+        $this->getJson('/api/v1/timezones')->assertUnauthorized();
+        $response=$this->signIn()->getJson('/api/v1/timezones')->assertOk(); // no tenant header needed
+        $this->assertSame(\DateTimeZone::listIdentifiers(),$response->json('data'));
+        $this->assertContains('Asia/Kolkata',$response->json('data')); $this->assertContains('UTC',$response->json('data'));
+        $this->assertStringContainsString('private',$response->headers->get('Cache-Control'));
+        $this->assertStringContainsString('max-age=86400',$response->headers->get('Cache-Control'));
+    }
+    public function test_pattern_history_is_append_only_and_company_timezone_has_no_default(): void
+    {
+        foreach(['UPDATE'=>false,'DELETE'=>false,'TRUNCATE'=>false,'INSERT'=>true,'SELECT'=>true] as $privilege=>$held) {
+            $this->assertSame($held,DB::selectOne('SELECT has_table_privilege(current_user, ?, ?) AS v',['calendar_patterns',$privilege])->v,"calendar_patterns $privilege");
+        }
+        $this->assertNull(DB::connection('fixture')->selectOne("SELECT column_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'companies' AND column_name = 'timezone'")->column_default);
+        $this->expectException(QueryException::class);
+        DB::connection('fixture')->table('companies')->insert(['id'=>(string)Str::uuid(),'tenant_id'=>$this->t1,'name'=>'No zone','code'=>'NOZONE']);
     }
     public function test_calendar_tables_are_isolated_by_tenant_and_company(): void
     {
