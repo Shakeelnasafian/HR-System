@@ -37,10 +37,10 @@ abstract class FoundationFixture extends TestCase
             $db->table('tenant_memberships')->insert(['id'=>$m,'tenant_id'=>$id,'user_id'=>$this->uid,'status'=>'active','requires_mfa'=>false]);
             if ($i === 0) { $this->membership = $m; }
             $company = $i === 0 ? $this->a : $this->other;
-            $db->table('companies')->insert(['id'=>$company,'tenant_id'=>$id,'name'=>'Allowed '.($i+1),'code'=>'ONE']);
+            $db->table('companies')->insert(['id'=>$company,'tenant_id'=>$id,'name'=>'Allowed '.($i+1),'code'=>'ONE','timezone'=>'Asia/Dubai']);
             $db->table('company_grants')->insert(['tenant_id'=>$id,'membership_id'=>$m,'company_id'=>$company,'permission'=>'company.read']);
         }
-        $db->table('companies')->insert(['id'=>$this->b,'tenant_id'=>$this->t1,'name'=>'Hidden company','code'=>'TWO']);
+        $db->table('companies')->insert(['id'=>$this->b,'tenant_id'=>$this->t1,'name'=>'Hidden company','code'=>'TWO','timezone'=>'Asia/Dubai']);
     }
 
     protected function signIn(): static

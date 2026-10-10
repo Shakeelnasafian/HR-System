@@ -10,7 +10,9 @@ Artisan::command('hr:grant-runtime', function () {
       GRANT SELECT, INSERT, UPDATE, DELETE ON users, sessions, password_reset_tokens, cache, cache_locks, jobs, job_batches, failed_jobs TO hr_app;
       GRANT SELECT ON tenants, tenant_memberships TO hr_app;
       GRANT SELECT, INSERT, UPDATE, DELETE ON companies, company_grants, departments, locations, positions, employees, employments TO hr_app;
-      GRANT SELECT, INSERT, UPDATE ON permission_bundles TO hr_app;
+      GRANT SELECT, INSERT, UPDATE ON permission_bundles, working_calendars TO hr_app;
+      GRANT SELECT, INSERT ON calendar_patterns TO hr_app;
+      GRANT SELECT, INSERT, DELETE ON calendar_holidays TO hr_app;
       GRANT SELECT, INSERT ON audit_events TO hr_app;
       GRANT SELECT, INSERT, UPDATE ON outbox_events, outbox_attempts TO hr_app;
       GRANT SELECT, INSERT, UPDATE ON invitations TO hr_app;
@@ -42,7 +44,7 @@ Artisan::command('hr:demo {--email=} {--password-env=} {--colleague : Add a synt
         DB::select("select set_config('app.tenant_id',?,true)",[$tenant]);
         foreach(['Demo Company A','Demo Company B'] as $i=>$name){
             $company=(string)Str::uuid();
-            DB::table('companies')->insert(['id'=>$company,'tenant_id'=>$tenant,'name'=>$name,'code'=>'DEMO-'.($i+1)]);
+            DB::table('companies')->insert(['id'=>$company,'tenant_id'=>$tenant,'name'=>$name,'code'=>'DEMO-'.($i+1),'timezone'=>'UTC']);
             if($colleagueMembership) { DB::table('company_grants')->insert(['tenant_id'=>$tenant,'membership_id'=>$colleagueMembership,'company_id'=>$company,'permission'=>'company.read']); }
             foreach (array_keys(\App\Tenancy\PermissionCatalog::LABELS) as $permission) {
                 DB::table('company_grants')->insert(['tenant_id'=>$tenant,'membership_id'=>$membership,'company_id'=>$company,'permission'=>$permission]);

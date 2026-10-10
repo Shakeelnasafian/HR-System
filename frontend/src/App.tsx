@@ -459,6 +459,16 @@ export function Workspace({
               tenant={selected}
               company={company}
               onBack={() => setCompany(null)}
+              onRenamed={(name) =>
+                setResult((r) =>
+                  r && {
+                    ...r,
+                    companies: r.companies.map((c) =>
+                      c.id === company.id ? { ...c, name } : c,
+                    ),
+                  },
+                )
+              }
             />
           ) : companies ? (
             <>

@@ -3,7 +3,7 @@ namespace App\Workforce;
 
 use App\Audit\Audit;
 
-use App\Tenancy\CompanyAccess;
+use App\Tenancy\ScopesCompany;
 use App\Tenancy\TenantContext;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
@@ -14,18 +14,8 @@ use Illuminate\Validation\ValidationException;
 
 final class WorkforceController
 {
+    use ScopesCompany;
     private const KINDS = ['departments','locations','positions'];
-    private function tenant(): string { return app(TenantContext::class)->id(); }
-    private function company(string $company, string $permission): object
-    {
-        abort_unless(Str::isUuid($company), 404);
-        $row = app(CompanyAccess::class)->readable($permission)->where('companies.id',$company)->first();
-        abort_unless($row, 404); return $row;
-    }
-    private function rows(string $table, string $company): Builder
-    {
-        return DB::table($table)->where('tenant_id',$this->tenant())->where('company_id',$company);
-    }
     private function page(Request $r, Builder $q): JsonResource
     {
         $r->validate(['page'=>'sometimes|integer|min:1','per_page'=>'sometimes|integer|min:1|max:100']);
