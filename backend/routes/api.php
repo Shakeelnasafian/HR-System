@@ -11,6 +11,17 @@ use App\Http\Controllers\Api\Tenancy\PermissionBundleController;
 use App\Http\Controllers\Api\Tenancy\RevokeMembershipController;
 use App\Organization\CalendarController;
 use App\Organization\CompanySettingsController;
+use App\Http\Controllers\Api\Organization\CalendarController;
+use App\Http\Controllers\Api\Organization\CalendarHolidayController;
+use App\Http\Controllers\Api\Organization\CalendarPatternController;
+use App\Http\Controllers\Api\Organization\CompanySettingsController;
+use App\Http\Controllers\Api\Organization\OrganizationUnitController;
+use App\Http\Controllers\Api\Organization\ProfileFieldSettingsController;
+use App\Http\Controllers\Api\Tenancy\ContextController;
+use App\Tenancy\AccessController;
+use App\Tenancy\InvitationAcceptance;
+use App\Tenancy\InvitationController;
+use App\Tenancy\PermissionBundleController;
 use App\Workforce\AssignmentController;
 use App\Workforce\ProfileController;
 use App\Workforce\WorkforceController;
@@ -56,18 +67,18 @@ Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
             // Organization: company settings, organization units, calendars, profile field settings.
             Route::get('', [CompanySettingsController::class, 'show']);
             Route::patch('', [CompanySettingsController::class, 'update']);
-            Route::get('organization/{kind}', [WorkforceController::class, 'organization']);
-            Route::post('organization/{kind}', [WorkforceController::class, 'createOrganization']);
-            Route::patch('organization/{kind}/{id}', [WorkforceController::class, 'updateOrganization']);
+            Route::get('organization/{kind}', [OrganizationUnitController::class, 'index']);
+            Route::post('organization/{kind}', [OrganizationUnitController::class, 'store']);
+            Route::patch('organization/{kind}/{id}', [OrganizationUnitController::class, 'update']);
             Route::get('calendars', [CalendarController::class, 'index']);
             Route::post('calendars', [CalendarController::class, 'store']);
             Route::get('calendars/{calendar}', [CalendarController::class, 'show']);
             Route::patch('calendars/{calendar}', [CalendarController::class, 'update']);
-            Route::post('calendars/{calendar}/patterns', [CalendarController::class, 'addPattern']);
-            Route::post('calendars/{calendar}/holidays', [CalendarController::class, 'addHoliday']);
-            Route::delete('calendars/{calendar}/holidays/{holiday}', [CalendarController::class, 'removeHoliday']);
-            Route::get('profile-fields', [ProfileController::class, 'fields']);
-            Route::put('profile-fields', [ProfileController::class, 'configure']);
+            Route::post('calendars/{calendar}/patterns', [CalendarPatternController::class, 'store']);
+            Route::post('calendars/{calendar}/holidays', [CalendarHolidayController::class, 'store']);
+            Route::delete('calendars/{calendar}/holidays/{holiday}', [CalendarHolidayController::class, 'destroy']);
+            Route::get('profile-fields', [ProfileFieldSettingsController::class, 'show']);
+            Route::put('profile-fields', [ProfileFieldSettingsController::class, 'update']);
 
             // Workforce: employees, employments, assignments, reporting lines, private profiles.
             Route::get('employees', [WorkforceController::class, 'employees']);

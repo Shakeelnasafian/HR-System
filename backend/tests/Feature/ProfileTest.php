@@ -200,8 +200,8 @@ class ProfileTest extends FoundationFixture
         $this->grant($this->b, ['workforce.write', 'profile.read']);
         $hidden = $this->person('3', $this->b);
         $this->getJson($this->url('employees/'.$hidden['id'].'/profile'))->assertNotFound();
-        $this->getJson($this->url('employees/'.$hidden['id'].'/profile',$this->b))->assertOk();
+        $this->getJson($this->url('employees/'.$hidden['id'].'/profile', $this->b))->assertOk();
         $this->getJson($this->url('employees/not-a-uuid/profile'))->assertNotFound();
-        $this->withHeader('X-Tenant-ID',$this->t2)->getJson($this->url('employees/'.$p['id'].'/profile',$this->other))->assertNotFound();
+        $this->withHeader('X-Tenant-ID', $this->t2)->getJson($this->url('employees/'.$p['id'].'/profile', $this->other))->assertNotFound();
     }
 }
