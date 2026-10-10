@@ -62,6 +62,10 @@ export function useSubmit() {
       .flatMap(([, messages]) => messages)
       .join(" ");
   }
+  /** Messages for exactly this key (not nested keys). */
+  function exactFieldError(name: string) {
+    return (fields[name] ?? []).join(" ");
+  }
   /**
    * Alert text: a short pointer when errors are shown inline next to the
    * given fields (avoids announcing them twice), plus any messages for
@@ -79,7 +83,7 @@ export function useSubmit() {
     if (keys.length && !keys.some(shown)) return other || error;
     return ["Check the highlighted fields.", other].filter(Boolean).join(" ");
   }
-  return { busy, error, conflict, run, fail, clearConflict, fieldError, summary };
+  return { busy, error, conflict, run, fail, clearConflict, fieldError, exactFieldError, summary };
 }
 
 /** Accessible props for an input linked to its field error. */
