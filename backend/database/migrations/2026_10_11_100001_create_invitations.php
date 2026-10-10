@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 // transaction-locally to the validated invitation's tenant or keep the caller's current one, and restore it.
 // search_path ends with pg_temp and relations are schema-qualified so a session temp table cannot shadow them.
 return new class extends Migration {
-    private const FUNCTIONS = ['hr_preview_invitation(uuid, uuid, text)', 'hr_accept_invitation(uuid, uuid, text, bigint, uuid)', 'hr_revoke_membership(uuid, uuid, uuid[])'];
+    private const FUNCTIONS = ['hr_preview_invitation(uuid, uuid, text)', 'hr_accept_invitation(uuid, uuid, text, bigint, uuid)', 'hr_revoke_membership(uuid, uuid, uuid[])', 'hr_invitation_inviter_qualifies(uuid, uuid, bigint, jsonb)'];
     // I1 trigger helpers run inside the definer functions as the owner: pin pg_temp last there too.
     private const HARDENED = ['hr_permission_requires_mfa(text)', 'hr_lock_membership_mfa_policy(uuid)', 'hr_company_grants_require_mfa()', 'hr_memberships_keep_mfa_for_privileged()'];
 
@@ -37,6 +37,16 @@ return new class extends Migration {
             DB::statement("CREATE POLICY tenant_boundary ON invitations USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid) WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)");
 
             DB::unprepared(<<<'SQL'
+                -- An invitation is usable only while its inviter still holds an active membership with access.manage and every
+                -- invited permission in the company (re-checked at preview, send and accept). SECURITY INVOKER: callers' own RLS applies.
+                CREATE FUNCTION hr_invitation_inviter_qualifies(p_tenant uuid, p_company uuid, p_inviter bigint, p_permissions jsonb) RETURNS boolean
+                    LANGUAGE sql STABLE SECURITY INVOKER SET search_path = pg_catalog, public, pg_temp AS $$
+                    SELECT EXISTS (SELECT 1 FROM public.tenant_memberships im WHERE im.tenant_id = p_tenant AND im.user_id = p_inviter AND im.status = 'active'
+                        AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements_text(p_permissions || '["access.manage"]'::jsonb) AS p(code)
+                            WHERE NOT EXISTS (SELECT 1 FROM public.company_grants g WHERE g.tenant_id = p_tenant AND g.membership_id = im.id
+                                AND g.company_id = p_company AND g.permission = p.code)))
+                $$;
+
                 -- Public preview: zero rows for any invalid/expired/used/cancelled invitation or wrong token (indistinguishable).
                 -- email is returned only to the holder of the valid secret (needed to create the invited account); the API exposes only the hint.
                 CREATE FUNCTION hr_preview_invitation(p_tenant uuid, p_invitation uuid, p_token_hash text)
@@ -51,7 +61,8 @@ return new class extends Migration {
                         FROM public.invitations i JOIN public.tenants t ON t.id = i.tenant_id AND t.status = 'active'
                         JOIN public.companies c ON c.tenant_id = i.tenant_id AND c.id = i.company_id
                         WHERE i.tenant_id = p_tenant AND i.id = p_invitation AND i.status = 'pending'
-                          AND i.expires_at > clock_timestamp() AND i.token_hash = p_token_hash;
+                          AND i.expires_at > clock_timestamp() AND i.token_hash = p_token_hash
+                          AND public.hr_invitation_inviter_qualifies(i.tenant_id, i.company_id, i.invited_by, i.permissions);
                     found_row := FOUND;
                     PERFORM set_config('app.tenant_id', coalesce(previous, ''), true);
                     IF NOT found_row THEN RETURN; END IF;
@@ -70,10 +81,15 @@ return new class extends Migration {
                         RAISE EXCEPTION 'invitation_unavailable' USING ERRCODE = 'P0002';
                     END IF;
                     PERFORM set_config('app.tenant_id', p_tenant::text, true);
-                    SELECT i.id, i.company_id, i.email, i.permissions, i.requires_mfa, i.status, i.expires_at, i.token_hash INTO inv
+                    -- Lock order shared with grant/invitation administration and revoke: company → invitation → membership → MFA policy lock.
+                    PERFORM 1 FROM public.companies c WHERE c.tenant_id = p_tenant
+                        AND c.id = (SELECT i.company_id FROM public.invitations i WHERE i.tenant_id = p_tenant AND i.id = p_invitation) FOR UPDATE;
+                    SELECT i.id, i.company_id, i.email, i.permissions, i.requires_mfa, i.status, i.expires_at, i.token_hash, i.invited_by INTO inv
                         FROM public.invitations i JOIN public.tenants t ON t.id = i.tenant_id AND t.status = 'active'
                         WHERE i.tenant_id = p_tenant AND i.id = p_invitation FOR UPDATE OF i;
-                    IF NOT FOUND OR inv.status <> 'pending' OR inv.expires_at <= clock_timestamp() OR inv.token_hash IS DISTINCT FROM p_token_hash THEN
+                    -- The inviter's authority is re-validated under the company lock: a demoted/removed inviter's invitations are dead.
+                    IF NOT FOUND OR inv.status <> 'pending' OR inv.expires_at <= clock_timestamp() OR inv.token_hash IS DISTINCT FROM p_token_hash
+                       OR NOT public.hr_invitation_inviter_qualifies(p_tenant, inv.company_id, inv.invited_by, inv.permissions) THEN
                         RAISE EXCEPTION 'invitation_unavailable' USING ERRCODE = 'P0002';
                     END IF;
                     SELECT lower(u.email) INTO recipient FROM public.users u WHERE u.id = p_user;
@@ -88,6 +104,7 @@ return new class extends Migration {
                     IF m.status NOT IN ('active', 'revoked') THEN
                         RAISE EXCEPTION 'invitation_membership_blocked' USING ERRCODE = '55000';
                     END IF;
+                    PERFORM public.hr_lock_membership_mfa_policy(m.id); -- serializes with revoke and grant replacement for this member
                     -- A revoked membership comes back with only the invited company access.
                     IF m.status = 'revoked' THEN DELETE FROM public.company_grants g WHERE g.tenant_id = p_tenant AND g.membership_id = m.id; END IF;
                     -- MFA is only ever raised here, never lowered.
@@ -125,6 +142,8 @@ return new class extends Migration {
                     PERFORM 1 FROM public.companies c WHERE c.tenant_id = tenant AND c.id = ANY (p_companies) ORDER BY c.id FOR UPDATE;
                     SELECT tm.status INTO target_status FROM public.tenant_memberships tm WHERE tm.tenant_id = tenant AND tm.id = p_target FOR UPDATE;
                     IF NOT FOUND OR target_status = 'revoked' THEN RAISE EXCEPTION 'membership_unavailable' USING ERRCODE = 'P0002'; END IF;
+                    -- Grant replacement takes the same per-membership lock, so a concurrent grant in another company cannot slip past.
+                    PERFORM public.hr_lock_membership_mfa_policy(p_target);
                     IF EXISTS (SELECT 1 FROM public.company_grants g WHERE g.tenant_id = tenant AND g.membership_id = p_target AND g.company_id <> ALL (p_companies)) THEN
                         RAISE EXCEPTION 'membership_grants_changed' USING ERRCODE = '55000';
                     END IF;

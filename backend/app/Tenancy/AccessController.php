@@ -40,7 +40,9 @@ final class AccessController
         // Serialize all grant mutations in a company, then evaluate the actor's current grants again.
         [$row,$actor,$held]=$this->admin->authorize($r,$company,true);
         abort_if($actor->id===$membership,403,'You cannot change your own permissions. Ask another authorized administrator.');
-        $target=$this->memberships($company)->where('m.id',$membership)->first(['m.id','m.status','m.requires_mfa']); abort_unless($target,404);
+        // Lock order company → member (same as revoke and invitation acceptance); read the target only after both.
+        DB::select('SELECT hr_lock_membership_mfa_policy(?::uuid)',[$membership]);
+        $target=$this->memberships($company)->where('m.id',$membership)->first(['m.id','m.status','m.requires_mfa','m.user_id']); abort_unless($target,404);
         $data=$r->validate([
             'version'=>'required|integer|min:1','reason'=>'required|string|max:500',
             'permissions'=>'present|array|max:'.count(PermissionCatalog::LABELS),
@@ -62,6 +64,7 @@ final class AccessController
             }
             DB::table('companies')->where('tenant_id',app(TenantContext::class)->id())->where('id',$company)->update(['access_version'=>$row->access_version+1]);
             Audit::record($company,'membership.company_permissions.updated',$membership,['added'=>$added,'removed'=>$removed],$data['reason']);
+            if($removed) {$this->admin->cancelInvitationsBeyond($company,(int)$target->user_id,$desired,$data['reason']);}
             $row->access_version++;
         }
         return ['data'=>['membership_id'=>$membership,'permissions'=>$desired,'access_version'=>$row->access_version]];
@@ -72,7 +75,7 @@ final class AccessController
         abort_unless(Str::isUuid($membership),404);
         [$row,$actor]=$this->admin->authorize($r,$company,true);
         abort_if($actor->id===$membership,403,'You cannot remove yourself from the organization.');
-        $target=$this->memberships($company)->where('m.id',$membership)->where('m.status','!=','revoked')->first(['m.id']); abort_unless($target,404);
+        $target=$this->memberships($company)->where('m.id',$membership)->where('m.status','!=','revoked')->first(['m.id','m.user_id']); abort_unless($target,404);
         $data=$r->validate(['version'=>'required|integer|min:1','reason'=>['required','string','max:500','regex:/\S/u']]);
         abort_unless($row->access_version===$data['version'],409,'Company permissions changed. Reload and review the latest grants.');
         $tenant=app(TenantContext::class)->id();
@@ -90,6 +93,7 @@ final class AccessController
             DB::table('companies')->where('tenant_id',$tenant)->where('id',$item->company_id)->increment('access_version');
             $permissions=str_getcsv(trim($item->permissions,'{}'));
             Audit::record($item->company_id,'membership.revoked',$membership,['removed'=>$permissions],$data['reason']);
+            $this->admin->cancelInvitationsBeyond($item->company_id,(int)$target->user_id,[],$data['reason']);
         }
         $version=DB::table('companies')->where('tenant_id',$tenant)->where('id',$company)->value('access_version');
         return ['data'=>['membership_id'=>$membership,'status'=>'revoked','access_version'=>$version]];
