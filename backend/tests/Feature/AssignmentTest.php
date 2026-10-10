@@ -265,7 +265,7 @@ class AssignmentTest extends FoundationFixture
         $this->assertStringContainsString('clear it explicitly',$response->json('errors.department_id.0'));
         $this->assign($e,['effective_from'=>'2026-03-01','position_id'=>$pos,'department_id'=>null,'manager_employment_id'=>null])->assertCreated()
             ->assertJsonPath('data.department',null)->assertJsonPath('data.manager',null)->assertJsonPath('data.position.id',$pos);
-        $this->assertSame(1,$this->version($m)+0*0-1);
+        $this->assertSame(2,$this->version($m)); // cancelled once; the rejected assignment left the manager untouched
     }
     public function test_cancelled_employment_probation_is_frozen(): void
     {
