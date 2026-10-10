@@ -5,7 +5,7 @@ User direction: continue the remaining modules, preserving a separate API-based 
 | Module | Delivered increment | Remaining obligations |
 |---|---|---|
 | Identity/tenancy | Cookie login, MFA, tenant selector, company read/action scopes, scoped grant administration with delegation limits, copy-only permission bundles, immutable company permission templates, restricted runtime RLS and worker context | Invitations, membership lifecycle, live role assignments, recovery/session lifecycle expansion |
-| Organization | Departments, locations, positions; create/rename/archive/version checks and same-company references | Company administration, calendars/holidays, settings origin/effective dates |
+| Organization | Departments, locations, positions; company name/timezone settings; working calendars with append-only weekly patterns and holidays; version checks and same-company references | Company creation/archival (tenant-level grants), tenant-shared calendars, settings origin/effective dates |
 | Workforce | Safe identity/directory, draft employment, activate/end/cancel, rehire/history, overlap protection | Full private profiles, self-service changes, manager/effective assignments, terms/contracts, reconciled transfer, CSV dry-run/import |
 | Audit | Transactional organization/workforce mutations, protected append-only table, company viewer, per-request correlation, stable ordering, insert-only authentication security events | Auth/admin/sensitive reads, export coverage, retention/legal holds and support access |
 | Approval/tasks | Not implemented | Sequential immutable workflow versions, eligible approvers, self-approval blocks, delegation, stale decisions, blocked routes and tasks |
