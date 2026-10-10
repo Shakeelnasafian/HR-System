@@ -2,7 +2,6 @@ import {afterEach, describe, expect, it, vi} from 'vitest'
 import {cleanup, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom/vitest'
-import './testTiming'
 import {Workspace} from './App'
 import {api} from './api'
 afterEach(()=>{cleanup();vi.unstubAllGlobals()})

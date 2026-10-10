@@ -2,7 +2,6 @@ import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import "./testTiming";
 import { Access } from "./Access";
 
 afterEach(() => {
