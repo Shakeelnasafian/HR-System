@@ -208,26 +208,70 @@ class AssignmentTest extends FoundationFixture
             $this->assertSame([$this->t2,$this->other],[$rows[$ids[2]]->tenant_id,$rows[$ids[2]]->company_id]);
         } finally { $db->rollBack(); }
     }
-    public function test_concurrent_reporting_changes_cannot_create_a_cycle(): void
+    public function test_reporting_lock_serializes_a_concurrent_reverse_edge(): void
     {
         $this->ready(); [$x,$y]=array_map(fn($n)=>$this->person($n)['employment_id'],['X','Y']);
-        $barrier=storage_path('logs/reporting-'.Str::uuid()); $processes=[];
+        // A second runtime connection plays the first request: it holds the company reporting lock with X -> Y written but uncommitted.
+        config(['database.connections.holder'=>config('database.connections.pgsql')]);
+        $holder=DB::connection('holder'); $holder->beginTransaction();
+        $barrier=storage_path('logs/reporting-'.Str::uuid()); $process=null;
         try {
-            foreach([[$x,$y],[$y,$x]] as [$employment,$manager]) {
-                $process=new \Symfony\Component\Process\Process([PHP_BINARY,'tests/Support/assign.php',$this->t1,(string)$this->uid,$this->a,$employment,$manager,'2026-03-01',$barrier],base_path(),['APP_ENV'=>'testing']);
-                $process->setTimeout(25); $process->start(); $processes[]=$process;
+            $holder->select("SELECT set_config('app.tenant_id', ?, true)",[$this->t1]);
+            $holder->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))',['hr.reporting_line:'.$this->t1.':'.$this->a]);
+            $holder->table('employment_assignments')->insert(['id'=>(string)Str::uuid(),'tenant_id'=>$this->t1,'company_id'=>$this->a,'employment_id'=>$x,'effective_from'=>'2026-03-01',
+                'manager_employment_id'=>$y,'created_by'=>$this->uid,'reason'=>'In flight']);
+            file_put_contents($barrier,'go');
+            $process=new \Symfony\Component\Process\Process([PHP_BINARY,'tests/Support/assign.php',$this->t1,(string)$this->uid,$this->a,$y,$x,'2026-03-01',$barrier],base_path(),['APP_ENV'=>'testing']);
+            $process->setTimeout(25); $process->start();
+            // Without the lock the reverse edge would not wait, miss the uncommitted X -> Y and succeed with 201.
+            $deadline=microtime(true)+15; $waiting=false;
+            while(!$waiting && $process->isRunning() && microtime(true)<$deadline) {
+                $waiting=DB::connection('fixture')->selectOne("SELECT count(*) AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' AND wait_event = 'advisory'")->n>0;
+                if(!$waiting) { usleep(20000); }
             }
-            $deadline=microtime(true)+15;
-            while(count(glob($barrier.'.*'))<2 && microtime(true)<$deadline) {usleep(10000);}
-            $this->assertCount(2,glob($barrier.'.*'),'Both processes must reach the barrier.');
-            file_put_contents($barrier,'go'); $statuses=[];
-            foreach($processes as $process) { $process->wait(); $this->assertTrue($process->isSuccessful(),$process->getErrorOutput()); $statuses[]=trim($process->getOutput()); }
-            sort($statuses); $this->assertSame(['201','422'],$statuses);
-            $this->assertSame(1,DB::connection('fixture')->table('employment_assignments')->whereNotNull('manager_employment_id')->count());
-            $this->assertSame(1,DB::connection('fixture')->table('audit_events')->where('action','employment.assignment_added')->count());
+            $this->assertTrue($waiting,'The reverse edge must wait for the reporting-line lock. Output: '.$process->getOutput().$process->getErrorOutput());
+            $holder->commit();
+            $process->wait(); $this->assertTrue($process->isSuccessful(),$process->getErrorOutput());
+            $this->assertSame('422',trim($process->getOutput()));
+            $this->assertSame([$x],DB::connection('fixture')->table('employment_assignments')->whereNotNull('manager_employment_id')->pluck('employment_id')->all());
+            $this->assertSame(0,DB::connection('fixture')->table('audit_events')->where('action','employment.assignment_added')->count());
         } finally {
-            foreach($processes as $process) { if($process->isRunning()) {$process->stop();} }
-            foreach(glob($barrier.'*') as $file) {unlink($file);}
+            if($holder->transactionLevel()>0) { $holder->rollBack(); }
+            DB::purge('holder');
+            if($process?->isRunning()) { $process->stop(); }
+            foreach(glob($barrier.'*') as $file) { unlink($file); }
         }
+    }
+    public function test_cycles_are_detected_between_people_holding_several_employments(): void
+    {
+        $this->ready(); $p=$this->person('P'); $a1=$p['employment_id']; $b=$this->person('B')['employment_id'];
+        $a2=$this->postJson($this->url('employees/'.$p['id'].'/employments'),['employment_number'=>'E-P2','start_date'=>'2026-01-01'])->assertCreated()->json('data.id');
+        $this->postJson($this->url("employments/$a1/activate"),['version'=>1,'reason'=>'Start'])->assertOk();
+        $this->assign($b,['effective_from'=>'2026-02-01','manager_employment_id'=>$a2])->assertCreated();
+        $this->assign($a1,['effective_from'=>'2026-03-01','manager_employment_id'=>$b],2)->assertUnprocessable()->assertJsonValidationErrors(['manager_employment_id'=>'cycle']);
+        $this->assign($b,['effective_from'=>'2026-01-15','manager_employment_id'=>null],2)->assertCreated(); // B unmanaged in January only
+        // Reverse order: P (via A1) manages nobody yet; B -> A2 is already in place from February, so A1 -> B in January closes on 2026-02-01.
+        $this->assign($a1,['effective_from'=>'2026-01-20','manager_employment_id'=>$b],2)->assertUnprocessable()->assertJsonValidationErrors(['manager_employment_id'=>'2026-02-01']);
+        // Ended history does not block: after A1 ends, the rehired relationship can be managed by B again only if no live link closes the loop.
+        $this->assertSame(0,DB::connection('fixture')->table('employment_assignments')->where('employment_id',$a1)->whereNotNull('manager_employment_id')->count());
+    }
+    public function test_copied_references_must_still_be_active(): void
+    {
+        $this->ready(); $dept=$this->org('departments','OLD'); $pos=$this->org('positions','NEW');
+        $m=$this->person('M')['employment_id']; $e=$this->person('E',['department_id'=>$dept,'manager_employment_id'=>$m])['employment_id'];
+        $this->patchJson($this->url("organization/departments/$dept"),['version'=>1,'archived'=>true])->assertOk();
+        $this->postJson($this->url("employments/$m/cancel"),['version'=>1,'reason'=>'Mistake'])->assertOk();
+        $response=$this->assign($e,['effective_from'=>'2026-03-01','position_id'=>$pos])->assertUnprocessable()->assertJsonValidationErrors(['department_id','manager_employment_id']);
+        $this->assertStringContainsString('clear it explicitly',$response->json('errors.department_id.0'));
+        $this->assign($e,['effective_from'=>'2026-03-01','position_id'=>$pos,'department_id'=>null,'manager_employment_id'=>null])->assertCreated()
+            ->assertJsonPath('data.department',null)->assertJsonPath('data.manager',null)->assertJsonPath('data.position.id',$pos);
+        $this->assertSame(1,$this->version($m)+0*0-1);
+    }
+    public function test_cancelled_employment_probation_is_frozen(): void
+    {
+        $this->ready(); $e=$this->person('1')['employment_id'];
+        $this->postJson($this->url("employments/$e/cancel"),['version'=>1,'reason'=>'Mistake'])->assertOk();
+        $this->patchJson($this->url("employments/$e"),['version'=>2,'reason'=>'Probation','probation_end_date'=>'2026-06-30'])->assertConflict();
+        $this->assertNull(DB::connection('fixture')->table('employments')->where('id',$e)->value('probation_end_date'));
     }
 }

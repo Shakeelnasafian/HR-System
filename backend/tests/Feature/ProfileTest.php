@@ -55,8 +55,18 @@ class ProfileTest extends FoundationFixture
         $this->patchJson($this->url('employees/'.$p['id'].'/profile'),['version'=>0,'reason'=>'No grant','fields'=>['birth_date'=>'1990-01-01']])->assertNotFound();
         $this->grant($this->a,['profile.write']); // write does not imply read
         $this->getJson($this->url('employees/'.$p['id'].'/profile'))->assertNotFound();
-        $this->patchJson($this->url('employees/'.$p['id'].'/profile'),['version'=>0,'reason'=>'Onboarding','fields'=>['birth_date'=>'1990-01-01']])->assertOk()
+        $url=$this->url('employees/'.$p['id'].'/profile');
+        $this->patchJson($url,['version'=>0,'reason'=>'Onboarding','fields'=>['birth_date'=>'1990-01-01']])->assertOk()
             ->assertExactJson(['data'=>['employee_id'=>$p['id'],'version'=>1,'updated'=>['birth_date']]]);
+        // A write-only actor cannot confirm a guessed value: a no-op and a real change look the same, and both are audited.
+        $same=$this->patchJson($url,['version'=>1,'reason'=>'Guess','fields'=>['birth_date'=>'1990-01-01']])->assertOk()->json('data');
+        $different=$this->patchJson($url,['version'=>2,'reason'=>'Guess','fields'=>['birth_date'=>'1991-01-01']])->assertOk()->json('data');
+        $this->assertSame([['birth_date'],['birth_date'],2,3],[$same['updated'],$different['updated'],$same['version'],$different['version']]);
+        $updated=$this->audits('profile.updated');
+        $this->assertCount(3,$updated);
+        $this->assertSame(['fields'=>[],'submitted'=>['birth_date']],json_decode($updated[1]->changes,true));
+        $this->assertSame(['fields'=>['birth_date'],'submitted'=>['birth_date']],json_decode($updated[2]->changes,true));
+        $this->assertSame('Guess',$updated[1]->reason);
         $this->assertCount(0,$this->audits('profile.viewed'));
     }
     public function test_profile_permissions_require_a_verified_session(): void
@@ -86,16 +96,19 @@ class ProfileTest extends FoundationFixture
         $this->patchJson($url,['version'=>0,'reason'=>'Onboarding','fields'=>['birth_date'=>'1990-05-17','personal_email'=>self::EMAIL,'emergency_contacts'=>[$contact]]])->assertOk()
             ->assertJsonPath('data.version',1)->assertJsonPath('data.updated',['birth_date','personal_email','emergency_contacts']);
         $this->patchJson($url,['version'=>0,'reason'=>'Stale','fields'=>['birth_date'=>null]])->assertConflict();
-        $this->patchJson($url,['version'=>1,'reason'=>'No change','fields'=>['birth_date'=>'1990-05-17','emergency_contacts'=>[$contact]]])->assertOk()->assertJsonPath('data.version',1)->assertJsonPath('data.updated',[]);
-        $this->getJson($url)->assertOk()->assertExactJson(['data'=>['employee_id'=>$p['id'],'version'=>1,'fields'=>['birth_date'=>'1990-05-17','personal_email'=>self::EMAIL,'address'=>null,'emergency_contacts'=>[$contact]]]]);
-        $this->patchJson($url,['version'=>1,'reason'=>'Correction','fields'=>['birth_date'=>null]])->assertOk()->assertJsonPath('data.version',2);
+        // Readers learn the real diff; the no-op is still versioned and audited.
+        $this->patchJson($url,['version'=>1,'reason'=>'No change','fields'=>['birth_date'=>'1990-05-17','emergency_contacts'=>[$contact]]])->assertOk()->assertJsonPath('data.version',2)->assertJsonPath('data.updated',[]);
+        $this->getJson($url)->assertOk()->assertExactJson(['data'=>['employee_id'=>$p['id'],'version'=>2,'fields'=>['birth_date'=>'1990-05-17','personal_email'=>self::EMAIL,'address'=>null,'emergency_contacts'=>[$contact]]]]);
+        $this->patchJson($url,['version'=>2,'reason'=>'Correction','fields'=>['birth_date'=>null]])->assertOk()->assertJsonPath('data.version',3)->assertJsonPath('data.updated',['birth_date']);
         $this->getJson($url)->assertOk()->assertJsonPath('data.fields.birth_date',null)->assertJsonPath('data.fields.personal_email',self::EMAIL);
         $viewed=$this->audits('profile.viewed');
         $this->assertCount(3,$viewed);
         $this->assertSame(['fields'=>['birth_date','personal_email','address','emergency_contacts']],json_decode($viewed[2]->changes,true));
         $this->assertSame($p['id'],$viewed[2]->resource_id);
-        $this->assertSame(['fields'=>['birth_date']],json_decode($this->audits('profile.updated')[1]->changes,true));
-        $this->assertCount(2,$this->audits('profile.updated'));
+        $updated=$this->audits('profile.updated');
+        $this->assertCount(3,$updated);
+        $this->assertSame(['fields'=>[],'submitted'=>['birth_date','emergency_contacts']],json_decode($updated[1]->changes,true));
+        $this->assertSame(['fields'=>['birth_date'],'submitted'=>['birth_date']],json_decode($updated[2]->changes,true));
         $everything=DB::connection('fixture')->table('audit_events')->get()->toJson();
         foreach([self::EMAIL,'1990-05-17','Synthetic Contact','555 0100'] as $secret) { $this->assertStringNotContainsString($secret,$everything); }
         // Directory, detail and assignment payloads use the safe field set only.
@@ -103,6 +116,18 @@ class ProfileTest extends FoundationFixture
             $body=$this->getJson($safe)->assertOk()->getContent();
             foreach([self::EMAIL,'Synthetic Contact','birth_date','personal_email','emergency_contacts'] as $secret) { $this->assertStringNotContainsString($secret,$body,$safe); }
         }
+    }
+    public function test_birth_date_cannot_be_after_the_company_date(): void
+    {
+        $this->ready(); $p=$this->person(); $this->enable(['birth_date']); $url=$this->url('employees/'.$p['id'].'/profile');
+        \Illuminate\Support\Carbon::setTestNow(\Illuminate\Support\Carbon::parse('2026-06-30 21:00:00','UTC')); // 2026-07-01 in Asia/Dubai
+        try {
+            DB::connection('fixture')->table('companies')->where('id',$this->a)->update(['timezone'=>'UTC']);
+            $this->patchJson($url,['version'=>0,'reason'=>'Newborn','fields'=>['birth_date'=>'2026-07-01']])->assertUnprocessable()->assertJsonValidationErrors('fields.birth_date');
+            DB::connection('fixture')->table('companies')->where('id',$this->a)->update(['timezone'=>'Asia/Dubai']);
+            $this->patchJson($url,['version'=>0,'reason'=>'Newborn','fields'=>['birth_date'=>'2026-07-01']])->assertOk();
+            $this->patchJson($url,['version'=>1,'reason'=>'Future','fields'=>['birth_date'=>'2026-07-02']])->assertUnprocessable();
+        } finally { \Illuminate\Support\Carbon::setTestNow(); }
     }
     public function test_disabled_fields_are_hidden_but_retained(): void
     {

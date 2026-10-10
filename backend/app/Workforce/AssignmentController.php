@@ -40,10 +40,11 @@ final class AssignmentController
         abort_if($row->status==='cancelled',409,'Cancelled employments cannot change assignments.');
         if($date<$row->start_date||($row->end_date&&$date>=$row->end_date)) { throw ValidationException::withMessages(['effective_from'=>'The effective date must fall within the employment (from start date, before end date).']); }
         if($this->rows('employment_assignments',$company)->where('employment_id',$row->id)->where('effective_from',$date)->exists()) { throw ValidationException::withMessages(['effective_from'=>'An assignment already starts on this date.']); }
-        $this->assignments->check($company,$explicit,$date,$row->employee_id);
         $base=$this->assignments->inEffect($company,$row->id,$date);
         $before=array_map(fn($k)=>$base?->$k,array_combine(Assignments::KEYS,Assignments::KEYS));
         $values=array_merge($before,$explicit);
+        // Copied-forward references are re-validated too: a new row must not re-assert an archived record or an ended/cancelled manager.
+        $this->assignments->check($company,$values,$date,$row->employee_id,array_keys(array_diff_key($values,$explicit)));
         $id=$this->assignments->insert($company,$row->id,$date,$values,$data['reason']);
         if($reporting) {
             $next=$this->rows('employment_assignments',$company)->where('employment_id',$row->id)->where('effective_from','>',$date)->min('effective_from');
@@ -77,6 +78,7 @@ final class AssignmentController
         $data=$r->validate(['version'=>'required|integer|min:1','reason'=>'required|string|max:500','probation_end_date'=>'present|nullable|date_format:Y-m-d']);
         $row=$this->employment($company,$employment,true);
         abort_unless($row->version===$data['version'],409,'This employment changed. Reload before continuing.');
+        abort_if($row->status==='cancelled',409,'Cancelled employments cannot be changed.');
         if($data['probation_end_date']!==null&&$data['probation_end_date']<$row->start_date) { throw ValidationException::withMessages(['probation_end_date'=>'The probation end date cannot be before the start date.']); }
         if($row->probation_end_date!==$data['probation_end_date']) {
             $this->rows('employments',$company)->where('id',$row->id)->update(['probation_end_date'=>$data['probation_end_date'],'version'=>$row->version+1,'updated_at'=>now()]);
