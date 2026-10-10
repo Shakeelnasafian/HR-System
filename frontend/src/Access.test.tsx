@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
+import "./testTiming";
 import { Access } from "./Access";
 afterEach(() => {
   cleanup();
@@ -45,6 +46,8 @@ function stubApi(
         return Promise.resolve(new Response(null, { status: 204 }));
       if (options.method === "GET" && path.endsWith("/permission-bundles"))
         return json({ data: bundles() });
+      if (options.method === "GET" && path.includes("/invitations?"))
+        return json({ data: [] });
       if (options.method === "GET" && path.includes("/access?page="))
         return json(state);
       if (options.method === "PUT" || options.method === "POST")
