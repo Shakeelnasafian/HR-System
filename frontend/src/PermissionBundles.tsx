@@ -3,7 +3,7 @@ import { api, csrf } from "./api";
 export type Bundle = { id: string; name: string; permissions: string[]; delegable: boolean };
 export type PermissionOption = { permission: string; label: string; delegable: boolean };
 export function PermissionBundles({ tenant, base, bundles, catalog, onSaved }: {
-  tenant: string; base: string; bundles: Bundle[]; catalog: PermissionOption[]; onSaved: () => void;
+  tenant: string; base: string; bundles: Bundle[]; catalog: PermissionOption[]; onSaved: (action: "created" | "archived") => void;
 }) {
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState("");
   async function submit(e: FormEvent<HTMLFormElement>, bundle?: Bundle) {
@@ -18,7 +18,7 @@ export function PermissionBundles({ tenant, base, bundles, catalog, onSaved }: {
           name: values.get("name"), reason: values.get("reason"), permissions: values.getAll("permissions"),
         },
       });
-      form.reset(); setOpen(false); onSaved();
+      form.reset(); setOpen(false); onSaved(bundle ? "archived" : "created");
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }

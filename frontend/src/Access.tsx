@@ -80,7 +80,7 @@ export function Access({ tenant, base }: { tenant: string; base: string }) {
             />
           ) : (
             <>
-              <PermissionBundles tenant={tenant} base={base} bundles={bundles} catalog={result.catalog} onSaved={() => { setResult(null); setRevision(n => n + 1); setMessage("Bundle saved. Member permissions are unchanged."); }} />
+              <PermissionBundles tenant={tenant} base={base} bundles={bundles} catalog={result.catalog} onSaved={(action) => { setResult(null); setRevision(n => n + 1); setMessage(action === "archived" ? "Bundle archived. Member permissions are unchanged." : "Bundle saved. Member permissions are unchanged."); }} />
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -184,11 +184,29 @@ function GrantForm({
     [reason, setReason] = useState(""),
     [preview, setPreview] = useState(false),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [bundleId, setBundleId] = useState(""),
+    [copyStatus, setCopyStatus] = useState("");
+  const chosenBundle = bundles.find((b) => b.id === bundleId);
   const added = selected.filter((p) => !member.permissions.includes(p)),
     removed = member.permissions.filter((p) => !selected.includes(p));
   const label = (p: string) =>
     catalog.find((c) => c.permission === p)?.label ?? p;
+  function addBundle() {
+    if (!chosenBundle?.delegable) return;
+    const additions = chosenBundle.permissions.filter(
+      (p) =>
+        !selected.includes(p) &&
+        catalog.some((c) => c.permission === p && c.delegable),
+    );
+    setSelected((previous) => [...new Set([...previous, ...additions])]);
+    setCopyStatus(
+      additions.length
+        ? `Added from ${chosenBundle.name}: ${additions.map(label).join(", ")}.`
+        : `${chosenBundle.name} added no new permissions.`,
+    );
+    setBundleId("");
+  }
   function review(e: FormEvent) {
     e.preventDefault();
     setError("");
@@ -265,15 +283,16 @@ function GrantForm({
         </section>
       ) : (
         <form onSubmit={review}>
-          <label>Copy permission bundle
-            <select value="" onChange={e => {
-              const bundle = bundles.find(b => b.id === e.target.value);
-              if (bundle?.delegable) setSelected(previous => [...new Set([...previous, ...bundle.permissions])]);
-            }}>
-              <option value="">Choose a bundle to add its permissions</option>
-              {bundles.map(b => <option key={b.id} value={b.id} disabled={!b.delegable}>{b.name}{!b.delegable ? " (outside your authority)" : ""}</option>)}
-            </select>
-          </label>
+          <div className="search-form">
+            <label>Copy permission bundle
+              <select value={bundleId} onChange={e => setBundleId(e.target.value)}>
+                <option value="">Choose a bundle to add its permissions</option>
+                {bundles.map(b => <option key={b.id} value={b.id} disabled={!b.delegable}>{b.name}{!b.delegable ? " (outside your authority)" : ""}</option>)}
+              </select>
+            </label>
+            <button type="button" className="secondary" disabled={!chosenBundle?.delegable} onClick={addBundle}>Add bundle permissions</button>
+          </div>
+          <p role="status" aria-live="polite">{copyStatus}</p>
           <p className="muted">Copying adds permissions to this review and preserves current grants. Review additions and removals before applying.</p>
           <fieldset>
             <legend>Company permissions</legend>
