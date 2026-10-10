@@ -75,3 +75,9 @@ Privileged permissions now require an MFA-verified session at use, independent o
 The review blocked the first version: a migration used `row_security=off`, which fails for the real non-superuser owner although tests (migrated as superuser) passed. The local runner and CI now migrate as a NOSUPERUSER/NOBYPASSRLS owner, which reproduced and then verified the fix. Backend services in `compose.yaml` now share one image tag so `docker compose build api web` cannot leave migrate/worker/scheduler images stale, which had made the browser journey fail.
 
 Verified locally: 49 backend tests / 376 assertions (owner-role migrations), 7 frontend tests, build and Docker Playwright journey. Remaining: sensitive-read audit, security-event review UI, retention, edge rate limits.
+
+## I2 — transactional outbox — 10 October 2026
+
+Adds the F08 outbox: tenant-scoped `outbox_events`/`outbox_attempts` under FORCE RLS, `Outbox::record` inside domain transactions, a scheduled relay that leases due events per active tenant with `SKIP LOCKED`, and two-phase delivery (re-check in a short system tenant transaction, external I/O outside any transaction, attempt-matched acknowledgement). Crashed or timed-out attempts are closed as `abandoned` after lease expiry and exhausted events fail with a critical log. A console-only, opt-in system tenant context (`HR_SYSTEM_CONTEXT`, worker/scheduler only) has no user principal, so user-scoped authorization fails closed. See [outbox contract](../architecture/outbox-contract.md).
+
+The independent review found that crashes and timeouts originally re-claimed forever without alerting; this was fixed and covered with real crashing worker processes. Verified locally: 61 backend tests / 490 assertions with owner-role migrations. No handler is registered yet; invitations are the first consumer. Not covered: scheduler liveness monitoring, retention, an operator UI, and jittered backoff.

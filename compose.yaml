@@ -38,9 +38,15 @@ services:
     <<: *backend
   worker:
     <<: *backend
+    environment:
+      <<: *backend-env
+      HR_SYSTEM_CONTEXT: 'true'
     command: ['php', 'artisan', 'queue:work', 'redis', '--tries=3', '--timeout=60']
   scheduler:
     <<: *backend
+    environment:
+      <<: *backend-env
+      HR_SYSTEM_CONTEXT: 'true'
     command: ['php', 'artisan', 'schedule:work']
   migrate:
     <<: *backend
