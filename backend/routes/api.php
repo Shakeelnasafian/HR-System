@@ -33,6 +33,17 @@ Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
             Route::post('employments/{id}/{action}','transition');
             Route::get('audit','audit');
         });
+        Route::get('companies/{company}', [\App\Organization\CompanySettingsController::class, 'show']);
+        Route::patch('companies/{company}', [\App\Organization\CompanySettingsController::class, 'update']);
+        Route::prefix('companies/{company}/calendars')->controller(\App\Organization\CalendarController::class)->group(function () {
+            Route::get('','index');
+            Route::post('','store');
+            Route::get('{calendar}','show');
+            Route::patch('{calendar}','update');
+            Route::post('{calendar}/patterns','addPattern');
+            Route::post('{calendar}/holidays','addHoliday');
+            Route::delete('{calendar}/holidays/{holiday}','removeHoliday');
+        });
 
         Route::get('/context', fn (CompanyAccess $access, TenantContext $context) => ['data' => [
             'tenant_id' => $context->id(), 'companies' => $access->readable()->orderBy('name')->get(['id', 'name', 'code']),
@@ -40,12 +51,6 @@ Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
         Route::get('/companies', function (Request $r, CompanyAccess $access) {
             $r->validate(['page' => 'sometimes|integer|min:1', 'per_page' => 'sometimes|integer|min:1|max:100']);
             return \App\Http\Resources\ProjectedRow::collection($access->readable()->orderBy('name')->orderBy('id')->paginate((int) $r->input('per_page', 25), ['id', 'name', 'code', 'timezone']));
-        });
-        Route::get('/companies/{id}', function (string $id, CompanyAccess $access) {
-            abort_unless(\Illuminate\Support\Str::isUuid($id), 404);
-            $company = $access->readable()->where('companies.id', $id)->first(['id', 'name', 'code', 'timezone']);
-            abort_unless($company, 404);
-            return ['data' => $company];
         });
     });
 });

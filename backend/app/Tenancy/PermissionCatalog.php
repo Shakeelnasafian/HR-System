@@ -5,6 +5,7 @@ final class PermissionCatalog
 {
     public const LABELS = [
         'company.read'=>'View company',
+        'company.manage'=>'Manage company name and timezone',
         'organization.read'=>'View organization',
         'organization.write'=>'Manage departments, locations and positions',
         'workforce.read'=>'View employee directory and employment history',
