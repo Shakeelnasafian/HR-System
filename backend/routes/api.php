@@ -32,8 +32,20 @@ Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
             Route::post('employees','createEmployee');
             Route::get('employees/{id}','employee');
             Route::post('employees/{id}/employments','rehire');
-            Route::post('employments/{id}/{action}','transition');
+            Route::post('employments/{id}/{action}','transition')->whereIn('action',['activate','end','cancel']);
             Route::get('audit','audit');
+        });
+        Route::prefix('companies/{company}')->controller(\App\Workforce\ProfileController::class)->group(function () {
+            Route::get('profile-fields','fields');
+            Route::put('profile-fields','configure');
+            Route::get('employees/{employee}/profile','show');
+            Route::patch('employees/{employee}/profile','update');
+        });
+        Route::prefix('companies/{company}/employments/{employment}')->controller(\App\Workforce\AssignmentController::class)->group(function () {
+            Route::patch('','update');
+            Route::get('assignments','index');
+            Route::post('assignments','store');
+            Route::get('reports','reports');
         });
         Route::get('companies/{company}', [\App\Organization\CompanySettingsController::class, 'show']);
         Route::patch('companies/{company}', [\App\Organization\CompanySettingsController::class, 'update']);

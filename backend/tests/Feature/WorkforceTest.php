@@ -95,11 +95,12 @@ class WorkforceTest extends FoundationFixture
     public function test_new_tables_fail_closed_without_context_and_enforce_company_foreign_keys(): void
     {
         $this->ready();$p=$this->person();
-        foreach(['employees','employments','audit_events','departments','locations','positions'] as $table) {$this->assertSame(0,DB::table($table)->count());}
+        foreach(['employees','employments','audit_events','departments','locations','positions','employment_types','employment_assignments','employee_profiles'] as $table) {$this->assertSame(0,DB::table($table)->count());}
         $foreign=(string)Str::uuid();
         DB::connection('fixture')->table('departments')->insert(['id'=>$foreign,'tenant_id'=>$this->t1,'company_id'=>$this->b,'code'=>'HIDDEN','name'=>'Hidden']);
         $this->expectException(QueryException::class);
-        app(TenantContext::class)->run($this->t1,$this->uid,fn()=>DB::table('employments')->where('id',$p['employment_id'])->update(['department_id'=>$foreign]));
+        app(TenantContext::class)->run($this->t1,$this->uid,fn()=>DB::table('employment_assignments')->insert(['id'=>(string)Str::uuid(),'tenant_id'=>$this->t1,'company_id'=>$this->a,
+            'employment_id'=>$p['employment_id'],'effective_from'=>'2026-02-01','department_id'=>$foreign]));
     }
     public function test_duplicate_identity_rolls_back_without_duplicate_employment_or_audit(): void
     {
