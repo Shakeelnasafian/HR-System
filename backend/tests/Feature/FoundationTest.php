@@ -23,7 +23,7 @@ class FoundationTest extends \Tests\Support\FoundationFixture
         $this->assertSame(0, DB::table('companies')->where('id',$this->a)->update(['name'=>'Bad']));
         $this->assertSame(0, DB::table('companies')->where('id',$this->a)->delete());
         $this->expectException(QueryException::class);
-        DB::table('companies')->insert(['id'=>(string) Str::uuid(),'tenant_id'=>$this->t1,'name'=>'Bad','code'=>'BAD']);
+        DB::table('companies')->insert(['id'=>(string) Str::uuid(),'tenant_id'=>$this->t1,'name'=>'Bad','code'=>'BAD','timezone'=>'UTC']);
     }
     public function test_context_switches_and_rollbacks_do_not_leak(): void
     {

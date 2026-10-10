@@ -74,7 +74,12 @@ Privileged permissions now require an MFA-verified session at use, independent o
 
 The review blocked the first version: a migration used `row_security=off`, which fails for the real non-superuser owner although tests (migrated as superuser) passed. The local runner and CI now migrate as a NOSUPERUSER/NOBYPASSRLS owner, which reproduced and then verified the fix. Backend services in `compose.yaml` now share one image tag so `docker compose build api web` cannot leave migrate/worker/scheduler images stale, which had made the browser journey fail.
 
-Verified locally: 49 backend tests / 376 assertions (owner-role migrations), 7 frontend tests, build and Docker Playwright journey. Remaining: sensitive-read audit, security-event review UI, retention, edge rate limits.
+Verified locally: 49 backend tests / 376 assertions (owner-role migrations), 7 frontend tests, build and Docker Playwright journey. Remaining: sensitive-read audit, security-event review UI, retention, edge rate li
+## I4 — company settings and working calendars — 10 October 2026
+
+Adds company name/timezone administration (`company.manage`, privileged) and company-owned working calendars with append-only weekly patterns and holidays, all versioned, audited and under FORCE RLS, with SPA tabs gated by capabilities. No weekend, holiday or timezone default is invented; the earlier `Asia/Dubai` column default was removed. The independent review found that browser timezone names (e.g. `Asia/Calcutta`) were rejected by the server, blocking some companies; the SPA now uses the server's list. Pattern history is append-only at the database grant level. A pre-existing frontend test that waited only 1s for async rendering flaked under parallel load; the shared async timeout is now 5s.
+
+Verified locally: 58 backend tests / 561 assertions, 16 frontend tests (5 consecutive runs), build, lint and the Docker browser journey including calendar creation, a holiday and a 375px overflow check. Deferred: company creation (tenant-level permissions), tenant-shared calendars, calendar assignment to employments (I5), settings resolution (TEN-04).
 
 ## I2 — transactional outbox — 10 October 2026
 
