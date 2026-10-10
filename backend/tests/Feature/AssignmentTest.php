@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Tenancy\TenantContext;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;

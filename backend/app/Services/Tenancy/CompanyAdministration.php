@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Tenancy;
+namespace App\Services\Tenancy;
 
-use App\Audit\Audit;
+use App\Services\Audit\Audit;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -55,6 +55,6 @@ final class CompanyAdministration
 
     public function grants(string $company, string $membership): Builder
     {
-        return DB::table('company_grants')->where('tenant_id', app(TenantContext::class)->id())->where('company_id',$company)->where('membership_id',$membership);
+        return DB::table('company_grants')->where('tenant_id', app(TenantContext::class)->id())->where('company_id', $company)->where('membership_id', $membership);
     }
 }

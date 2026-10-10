@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Audit\SecurityEvents;
+use App\Services\Audit\SecurityEvents;
 use App\Models\User;
-use App\Tenancy\TenantContext;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;

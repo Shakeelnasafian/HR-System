@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Tenancy;
+namespace App\Services\Tenancy;
 
 use Closure;
 use Illuminate\Support\Facades\DB;

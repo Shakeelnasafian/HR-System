@@ -2,8 +2,8 @@
 
 namespace App\Organization;
 
-use App\Audit\Audit;
-use App\Tenancy\ScopesCompany;
+use App\Services\Audit\Audit;
+use App\Services\Tenancy\ScopesCompany;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -179,10 +179,10 @@ final class CalendarController
         abort_unless(Str::isUuid($holiday), 404);
         [$row,$data] = $this->mutable($r, $company, $calendar, [], true); // archived calendars are frozen: no additions or removals
         $item = $this->rows('calendar_holidays', $company)->where('calendar_id', $row->id)->where('id', $holiday)->first();
-        abort_unless($item,404);
-        $this->rows('calendar_holidays',$company)->where('id',$holiday)->delete();
-        $this->bump($row,$company);
-        Audit::record($company,'calendar.holiday_removed',$row->id,['code' => $row->code, 'holiday_id' => $holiday, 'holiday_date' => $item->holiday_date],$data['reason']);
+        abort_unless($item, 404);
+        $this->rows('calendar_holidays', $company)->where('id', $holiday)->delete();
+        $this->bump($row, $company);
+        Audit::record($company, 'calendar.holiday_removed', $row->id, ['code' => $row->code, 'holiday_id' => $holiday, 'holiday_date' => $item->holiday_date], $data['reason']);
 
         return ['data' => ['id' => $holiday, 'removed' => true]];
     }

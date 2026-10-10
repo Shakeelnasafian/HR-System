@@ -1,7 +1,9 @@
 <?php
 
-namespace App\Audit;
+namespace App\Providers;
 
+use App\Services\Audit\RequestId;
+use App\Services\Audit\SecurityEvents;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Auth\Events\Login;

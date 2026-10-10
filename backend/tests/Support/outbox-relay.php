@@ -1,6 +1,6 @@
 <?php
 
-use App\Messaging\OutboxRelay;
+use App\Services\Messaging\OutboxRelay;
 use Illuminate\Contracts\Console\Kernel;
 
 // Standalone relay process used only by the concurrent claim test.

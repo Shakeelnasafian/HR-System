@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Audit;
+namespace App\Services\Audit;
 
-use App\Tenancy\TenantContext;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 

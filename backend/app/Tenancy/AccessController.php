@@ -2,8 +2,11 @@
 
 namespace App\Tenancy;
 
-use App\Audit\Audit;
 use App\Http\Resources\ProjectedRow;
+use App\Services\Audit\Audit;
+use App\Services\Tenancy\CompanyAdministration;
+use App\Services\Tenancy\PermissionCatalog;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -114,9 +117,9 @@ final class AccessController
             DB::table('companies')->where('tenant_id', $tenant)->where('id', $item->company_id)->increment('access_version');
             $permissions = str_getcsv(trim($item->permissions, '{}'));
             Audit::record($item->company_id, 'membership.revoked', $membership, ['removed' => $permissions], $data['reason']);
-            $this->admin->cancelInvitationsBeyond($item->company_id,(int) $target->user_id,[],$data['reason']);
+            $this->admin->cancelInvitationsBeyond($item->company_id, (int) $target->user_id, [], $data['reason']);
         }
-        $version = DB::table('companies')->where('tenant_id',$tenant)->where('id',$company)->value('access_version');
+        $version = DB::table('companies')->where('tenant_id', $tenant)->where('id', $company)->value('access_version');
 
         return ['data' => ['membership_id' => $membership, 'status' => 'revoked', 'access_version' => $version]];
     }

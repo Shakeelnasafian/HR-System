@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Messaging;
+namespace App\Services\Messaging;
 
-use App\Audit\RequestId;
-use App\Tenancy\TenantContext;
+use App\Services\Audit\RequestId;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;

@@ -2,7 +2,10 @@
 
 namespace App\Tenancy;
 
-use App\Audit\Audit;
+use App\Services\Audit\Audit;
+use App\Services\Tenancy\CompanyAdministration;
+use App\Services\Tenancy\PermissionCatalog;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;

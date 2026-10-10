@@ -1,6 +1,6 @@
 <?php
 
-use App\Tenancy\TenantContext;
+use App\Services\Tenancy\TenantContext;
 use App\Workforce\WorkforceController;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Http\Request;

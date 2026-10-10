@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Messaging;
+namespace App\Services\Messaging;
 
-use App\Tenancy\TenantContext;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use LogicException;

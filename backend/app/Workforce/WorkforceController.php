@@ -2,10 +2,10 @@
 
 namespace App\Workforce;
 
-use App\Audit\Audit;
 use App\Http\Resources\ProjectedRow;
-use App\Tenancy\ScopesCompany;
-use App\Tenancy\TenantContext;
+use App\Services\Audit\Audit;
+use App\Services\Tenancy\ScopesCompany;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -208,8 +208,8 @@ final class WorkforceController
 
     public function audit(Request $r, string $company): JsonResource
     {
-        $this->company($company,'audit.read');
+        $this->company($company, 'audit.read');
 
-        return $this->page($r,$this->rows('audit_events',$company)->orderByDesc('seq')->select(['id', 'actor_id', 'action', 'resource_id', 'correlation_id', 'changes', 'reason', 'occurred_at']));
+        return $this->page($r, $this->rows('audit_events', $company)->orderByDesc('seq')->select(['id', 'actor_id', 'action', 'resource_id', 'correlation_id', 'changes', 'reason', 'occurred_at']));
     }
 }

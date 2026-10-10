@@ -3,9 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use App\Tenancy\CompanyAccess;
-use App\Tenancy\PermissionCatalog;
-use App\Tenancy\TenantContext;
+use App\Services\Tenancy\CompanyAccess;
+use App\Services\Tenancy\PermissionCatalog;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;

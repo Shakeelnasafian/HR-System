@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Messaging;
+namespace App\Services\Messaging;
 
 /**
  * Delivery is at-least-once: use $event->id as the idempotency key toward every receiver.

@@ -2,7 +2,7 @@
 
 namespace App\Providers;
 
-use App\Actions\ResetUserPassword;
+use App\Actions\Fortify\ResetUserPassword;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;

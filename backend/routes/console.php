@@ -1,8 +1,8 @@
 <?php
 
-use App\Messaging\OutboxRelay;
-use App\Tenancy\PermissionCatalog;
-use App\Tenancy\TenantContext;
+use App\Services\Messaging\OutboxRelay;
+use App\Services\Tenancy\PermissionCatalog;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;

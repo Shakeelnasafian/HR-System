@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Tenancy\TenantContext;
+use App\Services\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;

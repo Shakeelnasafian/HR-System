@@ -1,9 +1,9 @@
 <?php
 
-use App\Tenancy\InvitationSendHandler;
+use App\Services\Messaging\Handlers\InvitationSendHandler;
 
 return [
-    // type => class implementing App\Messaging\OutboxHandler. Unknown types fail permanently on their first claim.
+    // type => class implementing App\Services\Messaging\OutboxHandler. Unknown types fail permanently on their first claim.
     'handlers' => ['invitation.send' => InvitationSendHandler::class],
     'queue' => env('OUTBOX_QUEUE'),
     'max_attempts' => (int) env('OUTBOX_MAX_ATTEMPTS', 8),

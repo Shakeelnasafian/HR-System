@@ -8,7 +8,7 @@ return new class extends Migration
     public function up(): void
     {
         // Events commit with the domain change that caused them; the relay leases them and workers deliver after commit.
-        // payload holds scalar identifiers only (enforced by App\Messaging\Outbox): handlers reload authorized data at execution.
+        // payload holds scalar identifiers only (enforced by App\Services\Messaging\Outbox): handlers reload authorized data at execution.
         DB::statement("CREATE TABLE outbox_events (
             id uuid PRIMARY KEY, seq bigint GENERATED ALWAYS AS IDENTITY UNIQUE, tenant_id uuid NOT NULL REFERENCES tenants (id), company_id uuid NULL,
             type varchar(80) NOT NULL, payload jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(payload) = 'object'), dedupe_key varchar(200) NOT NULL,

@@ -4,11 +4,11 @@ namespace Tests\Feature;
 
 use App\Jobs\DeliverOutboxEvent;
 use App\Mail\InvitationMail;
-use App\Messaging\OutboxDelivery;
-use App\Messaging\OutboxRelay;
+use App\Services\Messaging\OutboxDelivery;
+use App\Services\Messaging\OutboxRelay;
 use App\Models\User;
-use App\Tenancy\InvitationSendHandler;
-use App\Tenancy\TenantContext;
+use App\Services\Messaging\Handlers\InvitationSendHandler;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;

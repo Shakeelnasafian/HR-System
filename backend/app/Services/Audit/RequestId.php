@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Audit;
+namespace App\Services\Audit;
 
 use Illuminate\Support\Str;
 

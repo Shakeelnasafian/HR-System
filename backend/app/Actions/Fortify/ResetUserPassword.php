@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Actions;
+namespace App\Actions\Fortify;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;

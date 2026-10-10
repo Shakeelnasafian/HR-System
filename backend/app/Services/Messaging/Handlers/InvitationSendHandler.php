@@ -1,9 +1,10 @@
 <?php
 
-namespace App\Tenancy;
+namespace App\Services\Messaging\Handlers;
 
 use App\Mail\InvitationMail;
-use App\Messaging\OutboxHandler;
+use App\Services\Messaging\OutboxHandler;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
