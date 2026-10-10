@@ -45,4 +45,10 @@ class WorkingCalendar extends Model
     {
         $query->where($query->qualifyColumn('archived'), false);
     }
+
+    /** Saves $changes with the next version: every accepted calendar, pattern or holiday change bumps it (callers hold the row lock). */
+    public function bumpVersion(array $changes = []): void
+    {
+        $this->forceFill($changes + ['version' => $this->version + 1])->save();
+    }
 }
