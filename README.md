@@ -24,6 +24,7 @@ The API-based SPA choice is confirmed. Versions, persistence details and remaini
 | [Permissions](docs/architecture/permissions.md) | Resource/action scopes and sensitive-access rules |
 | [SPA and API contract](docs/architecture/api-contract.md) | Authentication, tenant context and API conventions |
 | [Isolation validation](docs/architecture/isolation-validation.md) | Threat model and unexecuted RLS/worker spike |
+| [Backend structure](docs/architecture/backend-structure.md) | Laravel layer layout, request lifecycle and structural rules |
 | [Workforce API contract](docs/architecture/workforce-contract.md) | Implemented organization/workforce routes and lifecycle rules |
 | [Access API contract](docs/architecture/access-contract.md) | Company permission administration, MFA and delegation boundaries |
 | [Outbox contract](docs/architecture/outbox-contract.md) | Transactional outbox, delivery phases and system tenant context |

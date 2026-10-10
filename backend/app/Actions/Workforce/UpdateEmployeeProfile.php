@@ -8,7 +8,6 @@ use App\Models\Workforce\EmployeeProfile;
 use App\Services\Audit\Audit;
 use App\Services\Tenancy\CompanyAccess;
 use App\Services\Tenancy\TenantContext;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -35,7 +34,7 @@ final class UpdateEmployeeProfile
      */
     public function handle(Company $company, string $employee, array $input): array
     {
-        $enabled = $this->enabledFields($company->id);
+        $enabled = Company::sharedProfileFields($company->id);
         $submittedFields = $input['fields'];
         $foreign = array_diff(array_keys($submittedFields), $enabled);
         if ($foreign) {
@@ -64,11 +63,5 @@ final class UpdateEmployeeProfile
         $reader = $this->access->allows($company->id, 'profile.read');
 
         return ['employee_id' => $employee, 'version' => $version, 'updated' => $reader ? $changed : $submitted];
-    }
-
-    private function enabledFields(string $company): array
-    {
-        // FOR SHARE on the company row's jsonb setting: a concurrent field-configuration change waits for this request instead of racing it.
-        return json_decode(DB::table('companies')->where('tenant_id', $this->context->id())->where('id', $company)->sharedLock()->value('profile_fields'), true);
     }
 }

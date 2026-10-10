@@ -112,7 +112,7 @@ class OutboxTest extends FoundationFixture
             $this->assertTrue($context->isSystem());
             $this->assertSame(2, DB::table('companies')->count());
             $this->assertThrows(fn () => $context->userId(), \LogicException::class, 'Missing tenant principal.');
-            $this->assertThrows(fn () => app(CompanyAccess::class)->readable()->count(), \LogicException::class);
+            $this->assertThrows(fn () => app(CompanyAccess::class)->query()->count(), \LogicException::class);
             $this->assertSame(0, DB::table('outbox_events')->count());
             $this->assertSame(0, DB::table('outbox_events')->where('id', $t2Event)->update(['status' => 'cancelled', 'lease_until' => null]));
             $this->assertThrows(fn () => DB::transaction(fn () => DB::table('outbox_attempts')->insert(['tenant_id' => $this->t2, 'event_id' => $t2Event, 'attempt' => 1])), QueryException::class);

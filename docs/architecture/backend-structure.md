@@ -62,4 +62,19 @@ folders; there is no `V1` namespace.
   (`UseTenantContext`), so model restoration never queries tenant data without a context.
 - **No extra layers.** No repositories, no interfaces for single implementations, no per-module service classes that
   regrow controller-sized logic. Shared read queries go in model scopes or a small single-purpose class next to the
-  Actions that use it.
+  Actions that use it. Such guards live beside the Actions that share them and keep descriptive method names:
+  `Tenancy\ManagerAuthority` (actor and held permissions under the company lock), `Tenancy\LockPendingInvitation`,
+  `Organization\LockCalendar`, `Workforce\ReportingLine` (advisory lock and person-level cycle check),
+  `Workforce\AssignmentReferences` and `Workforce\CurrentAssignments`.
+
+## Where things moved (October 2026 restructure)
+
+| Before | After |
+|---|---|
+| `app/Tenancy/*Controller`, `InvitationAcceptance`, `CompanyAdministration` | `Api/Tenancy/*` controllers, `Requests/Tenancy`, `Actions/Tenancy`, `Resources/Tenancy` |
+| `app/Organization/*Controller`, organization-unit and profile-field methods of the old workforce/profile controllers | `Api/Organization/*` |
+| `app/Workforce/WorkforceController`, `AssignmentController`, `ProfileController`, `Assignments` | `Api/Workforce/*`, `Api/Audit/AuditEventController`, `Actions/Workforce` |
+| `app/Tenancy/{TenantContext,CompanyAccess,PermissionCatalog}`, `ScopesCompany` trait | `Services/Tenancy`; the trait was replaced by `CompanyRequest`/`CompanyPolicy` |
+| `app/Audit/*`, `app/Messaging/*` | `Services/Audit`, `Services/Messaging` (`AuditServiceProvider` in `app/Providers`) |
+| `ProjectedRow` (generic row serialization) | Explicit Resources per representation |
+| Closures in `routes/api.php` and `routes/console.php` | `Api/Account`, `Api/Tenancy/ContextController`; `app/Console/Commands` |

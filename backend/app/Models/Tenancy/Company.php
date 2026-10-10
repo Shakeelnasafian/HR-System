@@ -74,6 +74,17 @@ class Company extends Model
         return $this->hasMany(Employment::class);
     }
 
+    /**
+     * The enabled private-profile fields, read FOR SHARE: a concurrent field-configuration change waits for the reading
+     * request instead of racing it. Profile reads and writes must use this rather than a plain attribute read.
+     *
+     * @return list<string>
+     */
+    public static function sharedProfileFields(string $company): array
+    {
+        return static::query()->whereKey($company)->sharedLock()->value('profile_fields');
+    }
+
     /** The company's local calendar date ("today" for activation, calendars and reporting lines). */
     public function today(): string
     {

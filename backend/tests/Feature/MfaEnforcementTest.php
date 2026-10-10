@@ -114,14 +114,14 @@ class MfaEnforcementTest extends FoundationFixture
         $this->seedBypassingTriggers(['workforce.read']);
         $access = app(CompanyAccess::class);
         $context = app(TenantContext::class);
-        $this->assertSame(1, $context->run($this->t1, $this->uid, fn () => $access->readable('company.read')->count()));
+        $this->assertSame(1, $context->run($this->t1, $this->uid, fn () => $access->query('company.read')->count()));
         try {
-            $context->run($this->t1, $this->uid, fn () => $access->readable('workforce.read')->exists());
+            $context->run($this->t1, $this->uid, fn () => $access->query('workforce.read')->exists());
             $this->fail('A job context used a privileged permission without MFA.');
         } catch (HttpException $e) {
             $this->assertSame(403, $e->getStatusCode());
         }
-        $this->assertSame(1, $context->run($this->t1, $this->uid, fn () => $access->readable('workforce.read')->count(), true));
-        $this->assertSame(0, $context->run($this->t1, $this->uid, fn () => $access->readable('audit.read')->count()));
+        $this->assertSame(1, $context->run($this->t1, $this->uid, fn () => $access->query('workforce.read')->count(), true));
+        $this->assertSame(0, $context->run($this->t1, $this->uid, fn () => $access->query('audit.read')->count()));
     }
 }
