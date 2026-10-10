@@ -44,4 +44,14 @@ class TenantMembership extends Model
     {
         $query->where($query->qualifyColumn('status'), 'active');
     }
+
+    /**
+     * Memberships holding at least one grant in $company (the members a company administrator can see and manage).
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeWithAccessTo(Builder $query, string $company): void
+    {
+        $query->whereHas('grants', fn (Builder $grants) => $grants->where('company_id', $company));
+    }
 }

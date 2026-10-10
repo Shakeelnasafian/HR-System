@@ -1,10 +1,9 @@
 <?php
 
-use App\Models\User;
+use App\Actions\Tenancy\ReplaceCompanyAccess;
+use App\Services\Tenancy\CompanyAccess;
 use App\Services\Tenancy\TenantContext;
-use App\Tenancy\AccessController;
 use Illuminate\Contracts\Console\Kernel;
-use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 require __DIR__.'/../../vendor/autoload.php';
@@ -20,12 +19,10 @@ while (! file_exists($barrier)) {
     usleep(10000);
 }
 try {
-    app(TenantContext::class)->run($tenant, (int) $actor, function () use ($actor, $company, $membership, $permissions) {
-        $request = Request::create('/', 'PUT', ['version' => 1, 'reason' => 'Synthetic concurrent access review', 'permissions' => json_decode($permissions, true, 512, JSON_THROW_ON_ERROR)]);
-        $request->setUserResolver(fn () => User::findOrFail($actor));
-        $request->setLaravelSession(app('session')->driver());
-        $request->session()->put('mfa_user_id', (int) $actor);
-        app(AccessController::class)->replace($request, $company, $membership);
+    app(TenantContext::class)->run($tenant, (int) $actor, function () use ($company, $membership, $permissions) {
+        // What CompanyAccessController::update does after its request authorized and validated: lock the company, run the action.
+        $locked = app(CompanyAccess::class)->find($company, 'access.manage', true);
+        app(ReplaceCompanyAccess::class)->handle($locked, $membership, ['version' => 1, 'reason' => 'Synthetic concurrent access review', 'permissions' => json_decode($permissions, true, 512, JSON_THROW_ON_ERROR)]);
     }, true); // Stands in for an MFA-verified HTTP request.
     echo '200';
 } catch (HttpExceptionInterface $e) {
