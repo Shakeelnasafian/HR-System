@@ -66,4 +66,32 @@ final class AccessController
         }
         return ['data'=>['membership_id'=>$membership,'permissions'=>$desired,'access_version'=>$row->access_version]];
     }
+    /** Removes the whole tenant membership, only if the actor administers every company where the target holds grants. */
+    public function revokeMembership(Request $r, string $company, string $membership): array
+    {
+        abort_unless(Str::isUuid($membership),404);
+        [$row,$actor]=$this->admin->authorize($r,$company,true);
+        abort_if($actor->id===$membership,403,'You cannot remove yourself from the organization.');
+        $target=$this->memberships($company)->where('m.id',$membership)->where('m.status','!=','revoked')->first(['m.id']); abort_unless($target,404);
+        $data=$r->validate(['version'=>'required|integer|min:1','reason'=>['required','string','max:500','regex:/\S/u']]);
+        abort_unless($row->access_version===$data['version'],409,'Company permissions changed. Reload and review the latest grants.');
+        $tenant=app(TenantContext::class)->id();
+        $companies=DB::table('company_grants')->where('tenant_id',$tenant)->where('membership_id',$membership)->distinct()->orderBy('company_id')->pluck('company_id')->all();
+        $managed=DB::table('company_grants')->where('tenant_id',$tenant)->where('membership_id',$actor->id)->where('permission','access.manage')->pluck('company_id')->all();
+        abort_if((bool)array_diff($companies,$managed),403,'Target has access in companies you do not administer; remove company access instead.');
+        // The definer function locks the affected companies, re-validates actor authority and the grant set, then revokes.
+        try {
+            $removed=DB::select('SELECT company_id, permissions FROM hr_revoke_membership(?, ?, ?::uuid[])',[$actor->id,$membership,'{'.implode(',',$companies).'}']);
+        } catch(\Illuminate\Database\QueryException $e) {
+            abort_if(($e->errorInfo[0]??'')==='55000',409,'Company access for this member changed. Reload and review it.');
+            throw $e;
+        }
+        foreach($removed as $item) {
+            DB::table('companies')->where('tenant_id',$tenant)->where('id',$item->company_id)->increment('access_version');
+            $permissions=str_getcsv(trim($item->permissions,'{}'));
+            Audit::record($item->company_id,'membership.revoked',$membership,['removed'=>$permissions],$data['reason']);
+        }
+        $version=DB::table('companies')->where('tenant_id',$tenant)->where('id',$company)->value('access_version');
+        return ['data'=>['membership_id'=>$membership,'status'=>'revoked','access_version'=>$version]];
+    }
 }

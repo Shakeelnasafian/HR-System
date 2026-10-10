@@ -8,5 +8,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON companies, company_grants, departments, 
 GRANT SELECT, INSERT, UPDATE ON permission_bundles TO hr_app;
 GRANT SELECT, INSERT ON audit_events TO hr_app;
 GRANT SELECT, INSERT, UPDATE ON outbox_events, outbox_attempts TO hr_app;
+GRANT SELECT, INSERT, UPDATE ON invitations TO hr_app;
+GRANT EXECUTE ON FUNCTION hr_preview_invitation(uuid, uuid, text), hr_accept_invitation(uuid, uuid, text, bigint, uuid), hr_revoke_membership(uuid, uuid, uuid[]) TO hr_app;
 GRANT INSERT ON security_events TO hr_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO hr_app;
