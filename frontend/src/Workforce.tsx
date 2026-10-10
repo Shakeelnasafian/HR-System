@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, csrf, type Company } from "./api";
 import { Access } from "./Access";
+import { Calendars } from "./Calendars";
+import { CompanySettings } from "./CompanySettings";
 
 type Page<T> = {
   data: T[];
@@ -85,7 +87,8 @@ export function CompanyWorkspace({
 }) {
   const [permissions, setPermissions] = useState<string[] | null>(null),
     [error, setError] = useState(""),
-    [tab, setTab] = useState("people");
+    [tab, setTab] = useState("people"),
+    [companyName, setCompanyName] = useState(company.name);
   const base = `/api/v1/companies/${company.id}`;
   useEffect(() => {
     const c = new AbortController();
@@ -106,7 +109,7 @@ export function CompanyWorkspace({
       <button className="text-button" onClick={onBack}>
         ← All companies
       </button>
-      <h2>{company.name}</h2>
+      <h2>{companyName}</h2>
       <ErrorBox error={error} />
       {permissions ? (
         <>
@@ -127,6 +130,14 @@ export function CompanyWorkspace({
                 Organization
               </button>
             )}
+            {permissions.includes("organization.read") && (
+              <button
+                className={tab === "calendars" ? "" : "secondary"}
+                onClick={() => setTab("calendars")}
+              >
+                Calendars
+              </button>
+            )}
             {permissions.includes("audit.read") && (
               <button
                 className={tab === "audit" ? "" : "secondary"}
@@ -143,6 +154,14 @@ export function CompanyWorkspace({
                 Permissions
               </button>
             )}
+            {permissions.includes("company.manage") && (
+              <button
+                className={tab === "settings" ? "" : "secondary"}
+                onClick={() => setTab("settings")}
+              >
+                Company settings
+              </button>
+            )}
           </nav>
           {tab === "people" && permissions.includes("workforce.read") ? (
             <People
@@ -157,6 +176,19 @@ export function CompanyWorkspace({
               tenant={tenant}
               base={base}
               canWrite={permissions.includes("organization.write")}
+            />
+          ) : tab === "calendars" &&
+            permissions.includes("organization.read") ? (
+            <Calendars
+              tenant={tenant}
+              base={base}
+              canWrite={permissions.includes("organization.write")}
+            />
+          ) : tab === "settings" && permissions.includes("company.manage") ? (
+            <CompanySettings
+              tenant={tenant}
+              base={base}
+              onSaved={(c) => setCompanyName(c.name)}
             />
           ) : tab === "audit" && permissions.includes("audit.read") ? (
             <AuditHistory tenant={tenant} base={base} />

@@ -73,6 +73,26 @@ test("real cookie login, privileged MFA enrollment and company scope", async ({
   await expect(
     page.getByRole("cell", { name: "Engineering", exact: true }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Calendars", exact: true }).click();
+  await page.getByRole("button", { name: "New calendar", exact: true }).click();
+  await page.getByLabel("Calendar code", { exact: true }).fill("STD");
+  await page.getByLabel("Calendar name", { exact: true }).fill("Synthetic office week");
+  await page.getByLabel("Pattern effective from", { exact: true }).fill("2026-01-01");
+  for (const day of ["Monday", "Tuesday", "Wednesday", "Thursday"])
+    await page.getByRole("checkbox", { name: day, exact: true }).check();
+  await page.getByLabel("Reason — avoid confidential details").fill("Synthetic calendar setup");
+  await page.getByRole("button", { name: "Create calendar", exact: true }).click();
+  await expect(page.getByText("Calendar STD created.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Open STD", exact: true }).click();
+  const holidayDate = `${new Date().getFullYear()}-12-30`;
+  await page.getByLabel("Holiday date", { exact: true }).fill(holidayDate);
+  await page.getByLabel("Holiday name", { exact: true }).fill("Synthetic closure");
+  await page.getByLabel("Reason for holiday", { exact: true }).fill("Synthetic holiday fixture");
+  await page.getByRole("button", { name: "Add holiday", exact: true }).click();
+  await expect(page.getByRole("cell", { name: "Synthetic closure", exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 375, height: 812 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page.getByRole("button", { name: "People", exact: true }).click();
   await page.getByRole("button", { name: "Add employee", exact: true }).click();
   await page.getByLabel("Employee number", { exact: true }).fill("P001");
