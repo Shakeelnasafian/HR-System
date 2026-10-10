@@ -270,6 +270,16 @@ export function toProfile(value: unknown): Profile {
   };
 }
 
+/**
+ * `PATCH …/employees/{id}/profile` → `{data:{employee_id, version, updated:[keys]}}`.
+ * Values are never returned (profile.write does not imply profile.read).
+ */
+export type ProfileSaveResult = {
+  employee_id: string;
+  version: number;
+  updated: string[];
+};
+
 export type ProfileFieldConfig = {
   enabled: string[];
   available: string[];

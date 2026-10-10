@@ -29,12 +29,14 @@ const job = {
   current_assignment: {
     id: "a1",
     effective_from: "2026-01-01",
-    department: { id: "d1", name: "Sales" },
+    department: { id: "d1", code: "SAL", name: "Sales" },
     location: { id: "l1", name: "Berlin" },
     position: null,
     employment_type: { id: "t1", name: "Full time" },
     calendar: { id: "c1", name: "Standard" },
-    manager: { employment_id: "mjob", employee_number: "P002", legal_name: "Old Manager" },
+    manager: { employment_id: "mjob", employment_number: "M001", employee_id: "old", employee_number: "P002", legal_name: "Old Manager", preferred_name: null },
+    reason: "Initial assignment",
+    created_at: "2026-01-01T00:00:00Z",
   },
 };
 const org = (rows: object[]) => json({ data: rows, meta: { current_page: 1, last_page: 1, total: rows.length } });
@@ -68,13 +70,9 @@ function stub() {
     if (path === `${base}/calendars?include_archived=0`)
       return json({ data: [{ id: "c1", code: "STD", name: "Standard", archived: false, version: 1 }] });
     if (path === `${base}/employments/job/assignments` && method === "GET")
-      return json({
-        data: [
-          { id: "a1", effective_from: "2026-01-01", department_id: "d1", department_name: "Sales", manager_employment_id: "mjob", manager_name: "Old Manager", reason: "Initial assignment" },
-        ],
-      });
+      return json({ data: [{ ...job.current_assignment, employment_id: "job" }] });
     if (path === `${base}/employments/job/assignments` && method === "POST")
-      return json({ data: { id: "a2" } }, 201);
+      return json({ data: { ...job.current_assignment, id: "a2", employment_version: 5 } }, 201);
     if (path === `${base}/employments/job` && method === "PATCH") return json({ data: { ...job, version: 5 } });
     throw new Error(`Unexpected request ${method} ${path}`);
   });
@@ -103,7 +101,8 @@ it("shows the current assignment and loads history on request", async () => {
   await userEvent.click(within(card).getByRole("button", { name: "Show assignment history for E001" }));
   const table = await within(card).findByRole("table", { name: "Assignment history, newest first" });
   expect(within(table).getByText("Initial assignment")).toBeInTheDocument();
-  expect(within(table).getByText("Old Manager")).toBeInTheDocument();
+  expect(within(table).getByText("Old Manager (P002)")).toBeInTheDocument();
+  expect(within(table).getByText("Sales")).toBeInTheDocument();
 });
 
 it("posts an effective-dated assignment with keep, clear and set semantics and a resolved manager", async () => {
