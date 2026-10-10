@@ -34,14 +34,14 @@ final class CalendarController
         if($lock) { $q->lockForUpdate(); }
         $row=$q->first(); abort_unless($row,404); return $row;
     }
-    /** Locks the calendar, checks the caller's version and, for additions, that it is still active. */
-    private function mutable(Request $r, string $company, string $calendar, array $rules, bool $adding): array
+    /** Locks the calendar, checks the caller's version and, for pattern/holiday changes, that it is still active. */
+    private function mutable(Request $r, string $company, string $calendar, array $rules, bool $content): array
     {
         $this->company($company,'organization.write');
         $data=$r->validate(['version'=>'required|integer|min:1','reason'=>'required|string|max:500']+$rules);
         $row=$this->calendar($company,$calendar,true);
         abort_unless($row->version===(int)$data['version'],409,'This calendar changed. Reload before saving.');
-        abort_if($adding&&$row->archived,409,'Archived calendars cannot be changed. Restore it first.');
+        abort_if($content&&$row->archived,409,'Archived calendars cannot be changed. Restore it first.');
         return [$row,$data];
     }
     private function bump(object $row, string $company, array $changes=[]): void
@@ -124,7 +124,7 @@ final class CalendarController
     public function removeHoliday(Request $r, string $company, string $calendar, string $holiday): array
     {
         abort_unless(Str::isUuid($holiday),404);
-        [$row,$data]=$this->mutable($r,$company,$calendar,[],false);
+        [$row,$data]=$this->mutable($r,$company,$calendar,[],true); // archived calendars are frozen: no additions or removals
         $item=$this->rows('calendar_holidays',$company)->where('calendar_id',$row->id)->where('id',$holiday)->first(); abort_unless($item,404);
         $this->rows('calendar_holidays',$company)->where('id',$holiday)->delete();
         $this->bump($row,$company);

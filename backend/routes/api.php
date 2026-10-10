@@ -15,6 +15,8 @@ Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
         ->join('tenants as t', 't.id', '=', 'm.tenant_id')->where('m.user_id', $r->user()->id)
         ->where('m.status', 'active')->where('t.status', 'active')->orderBy('t.name')
         ->get(['t.id', 't.name', 'm.requires_mfa'])])->header('Cache-Control', 'no-store, private'));
+    // The server's IANA list is the only set PATCH /companies/{company} accepts; browsers' Intl lists differ (aliases, missing zones).
+    Route::get('/timezones', fn () => response()->json(['data' => DateTimeZone::listIdentifiers()])->header('Cache-Control', 'private, max-age=86400'));
     Route::middleware('tenant')->group(function () {
         Route::get('companies/{company}/permission-bundles', [\App\Tenancy\PermissionBundleController::class, 'index']);
         Route::post('companies/{company}/permission-bundles', [\App\Tenancy\PermissionBundleController::class, 'store']);
