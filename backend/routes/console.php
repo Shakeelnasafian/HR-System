@@ -2,6 +2,7 @@
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Str;
 
 Artisan::command('hr:grant-runtime', function () {
@@ -13,6 +14,9 @@ Artisan::command('hr:grant-runtime', function () {
       GRANT SELECT, INSERT ON calendar_patterns, employment_assignments TO hr_app;
       GRANT SELECT, INSERT, DELETE ON calendar_holidays TO hr_app;
       GRANT SELECT, INSERT ON audit_events TO hr_app;
+      GRANT SELECT, INSERT, UPDATE ON outbox_events, outbox_attempts TO hr_app;
+      GRANT SELECT, INSERT, UPDATE ON invitations TO hr_app;
+      GRANT EXECUTE ON FUNCTION hr_preview_invitation(uuid, uuid, text), hr_accept_invitation(uuid, uuid, text, bigint, uuid), hr_revoke_membership(uuid, uuid, uuid[]) TO hr_app;
       GRANT INSERT ON security_events TO hr_app;
       GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO hr_app;');
     $this->info('Runtime grants applied.');
@@ -49,3 +53,32 @@ Artisan::command('hr:demo {--email=} {--password-env=} {--colleague : Add a synt
     });
     $this->info('Synthetic workspace created. Sign in and enroll MFA.');
 })->purpose('Create an explicit synthetic local workspace using the owner connection');
+
+Artisan::command('hr:outbox-relay {--batch=} {--max-per-tenant=}', function () {
+    $opt = fn ($name) => $this->option($name) ? (int) $this->option($name) : null;
+    $this->line('Dispatched '.app(\App\Messaging\OutboxRelay::class)->run($opt('batch'), $opt('max-per-tenant')).' outbox event(s).');
+})->purpose('Lease due outbox events per active tenant and dispatch delivery jobs');
+
+Artisan::command('hr:outbox-status', function () {
+    // Counts and ages only; payloads, dedupe keys and errors stay in the database.
+    $rows = [];
+    foreach (DB::table('tenants')->where('status', 'active')->orderBy('id')->pluck('id') as $tenant) {
+        app(\App\Tenancy\TenantContext::class)->runSystem($tenant, function () use ($tenant, &$rows) {
+            $oldest = DB::table('outbox_events')->where('tenant_id', $tenant)->where('status', 'pending')
+                ->selectRaw('floor(extract(epoch from clock_timestamp() - min(created_at)))::bigint AS age')->value('age');
+            foreach (DB::table('outbox_events')->where('tenant_id', $tenant)->groupBy('type', 'status')->orderBy('type')->orderBy('status')
+                ->selectRaw('type, status, count(*) AS n')->get() as $r) {
+                $rows[] = [$tenant, $r->type, $r->status, $r->n, $r->status === 'pending' ? (int) $oldest : ''];
+            }
+        });
+    }
+    $this->table(['tenant', 'type', 'status', 'count', 'oldest pending (s)'], $rows);
+    if ($skipped = DB::table('tenants')->where('status', '!=', 'active')->count()) {
+        $this->warn("$skipped inactive tenant(s) not shown; their events stay pending until reactivated.");
+    }
+})->purpose('Show outbox counts by tenant, type and status (no payloads)');
+
+// Sub-minute schedules need `php artisan schedule:work` (or schedule:run every minute, which then loops for the minute).
+Schedule::command('hr:outbox-relay')->everyFiveSeconds()->withoutOverlapping(1)->onOneServer()
+    // Scheduled children otherwise write to /dev/null; send output and stderr logs (critical outbox alerts) to the container log.
+    ->appendOutputTo(env('SCHEDULE_OUTPUT', '/proc/1/fd/2'));

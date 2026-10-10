@@ -2,8 +2,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import {
   BrowserRouter,
   Link,
+  Navigate,
   Route,
   Routes,
+  useLocation,
   useSearchParams,
 } from "react-router-dom";
 import {
@@ -16,6 +18,9 @@ import {
 } from "./api";
 import "./App.css";
 import { CompanyWorkspace } from "./Workforce";
+import { AuthCard } from "./AuthCard";
+import { AcceptInvitation } from "./AcceptInvitation";
+import { loginUrlReturningTo, safeReturnPath } from "./returnPath";
 
 function ErrorMessage({ message }: { message: string }) {
   return message ? (
@@ -29,6 +34,8 @@ function Login({ refresh }: { refresh: () => Promise<void> }) {
     [recovery, setRecovery] = useState(false);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [params] = useSearchParams(),
+    returning = safeReturnPath(params.get("return")) !== null;
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
@@ -59,7 +66,9 @@ function Login({ refresh }: { refresh: () => Promise<void> }) {
       subtitle={
         challenge
           ? "Complete your secure sign-in."
-          : "Sign in to your HR workspace."
+          : returning
+            ? "Sign in to continue where you left off."
+            : "Sign in to your HR workspace."
       }
     >
       <form onSubmit={submit}>
@@ -110,31 +119,6 @@ function Login({ refresh }: { refresh: () => Promise<void> }) {
       </form>
       {!challenge && <Link to="/forgot-password">Forgot password?</Link>}
     </AuthCard>
-  );
-}
-function AuthCard({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <main className="auth">
-      <div className="auth-brand">
-        <span className="mark">h.</span>
-        <span>HR Platform</span>
-      </div>
-      <section className="auth-card">
-        <p className="eyebrow">YOUR PEOPLE, CONNECTED</p>
-        <h1>{title}</h1>
-        <p className="muted">{subtitle}</p>
-        {children}
-      </section>
-      <p className="auth-foot">Secure access · Your organization’s workspace</p>
-    </main>
   );
 }
 function PasswordForm({ reset = false }: { reset?: boolean }) {
@@ -530,6 +514,8 @@ export function Workspace({
   );
 }
 function SessionApp() {
+  const location = useLocation(),
+    [params] = useSearchParams();
   const [user, setUser] = useState<User | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState("");
@@ -582,7 +568,7 @@ function SessionApp() {
       channel?.close();
     };
   }, []);
-  async function logout() {
+  async function logout(destination?: unknown) {
     try {
       await csrf();
       await api("/logout", { method: "POST" });
@@ -592,7 +578,9 @@ function SessionApp() {
         c.postMessage("logout");
         c.close();
       }
-      window.location.assign("/login");
+      window.location.assign(
+        typeof destination === "string" ? destination : "/login",
+      );
     } catch (e) {
       setError((e as Error).message);
     }
@@ -603,6 +591,9 @@ function SessionApp() {
         Opening your workspace…
       </main>
     );
+  const returnTo =
+    location.pathname === "/login" ? safeReturnPath(params.get("return")) : null;
+  if (user && returnTo) return <Navigate to={returnTo} replace />;
   return (
     <>
       {error && (
@@ -610,7 +601,12 @@ function SessionApp() {
           {error}
         </div>
       )}
-      {user ? (
+      {location.pathname === "/invitations/accept" ? (
+        <AcceptInvitation
+          user={user}
+          onSignOut={(returnTo) => void logout(loginUrlReturningTo(returnTo))}
+        />
+      ) : user ? (
         <Workspace user={user} logout={logout} />
       ) : (
         <Routes>

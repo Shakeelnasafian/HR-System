@@ -5,6 +5,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
+Route::prefix('v1/invitations')->middleware('throttle:invitations')->controller(\App\Tenancy\InvitationAcceptance::class)->group(function () {
+    Route::post('preview', 'preview');
+    Route::post('accept', 'accept');
+});
 Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/me', fn (Request $r) => response()->json(['data' => [
         'id' => $r->user()->id, 'name' => $r->user()->name, 'email' => $r->user()->email,
@@ -23,6 +27,11 @@ Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
         Route::post('companies/{company}/permission-bundles/{bundle}/archive', [\App\Tenancy\PermissionBundleController::class, 'archive']);
         Route::get('companies/{company}/access', [\App\Tenancy\AccessController::class, 'index']);
         Route::put('companies/{company}/access/{membership}', [\App\Tenancy\AccessController::class, 'replace']);
+        Route::post('companies/{company}/access/{membership}/revoke-membership', [\App\Tenancy\AccessController::class, 'revokeMembership']);
+        Route::get('companies/{company}/invitations', [\App\Tenancy\InvitationController::class, 'index']);
+        Route::post('companies/{company}/invitations', [\App\Tenancy\InvitationController::class, 'store']);
+        Route::post('companies/{company}/invitations/{invitation}/resend', [\App\Tenancy\InvitationController::class, 'resend']);
+        Route::post('companies/{company}/invitations/{invitation}/cancel', [\App\Tenancy\InvitationController::class, 'cancel']);
         Route::prefix('companies/{company}')->controller(\App\Workforce\WorkforceController::class)->group(function () {
             Route::get('capabilities','capabilities');
             Route::get('organization/{kind}','organization');
