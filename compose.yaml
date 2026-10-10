@@ -1,5 +1,6 @@
 # Local development only. Secrets belong in the root .env (never committed).
 x-backend: &backend
+  image: hr-platform-backend:local
   build:
     context: .
     dockerfile: infra/backend.Dockerfile

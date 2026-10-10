@@ -14,11 +14,11 @@ return new class extends Migration {
                     LANGUAGE sql IMMUTABLE STRICT SECURITY INVOKER SET search_path = pg_catalog
                     AS $$ SELECT permission NOT IN ('company.read', 'organization.read') $$;
             SQL);
-            // row_security=off makes a role subject to RLS error out instead of silently counting only its own tenant.
-            DB::statement('SET LOCAL row_security = off');
+            // The non-superuser owner is exempt from RLS only while FORCE is lifted, so count every tenant's rows inside this transaction.
+            DB::statement('ALTER TABLE company_grants NO FORCE ROW LEVEL SECURITY');
             $violations = DB::selectOne("SELECT count(*) AS n FROM company_grants g JOIN tenant_memberships m ON m.tenant_id = g.tenant_id AND m.id = g.membership_id
                 WHERE hr_permission_requires_mfa(g.permission) AND m.requires_mfa IS NOT TRUE")->n;
-            DB::statement('SET LOCAL row_security = on');
+            DB::statement('ALTER TABLE company_grants FORCE ROW LEVEL SECURITY');
             if ($violations > 0) {
                 throw new RuntimeException("$violations privileged company grant(s) belong to memberships without requires_mfa. Require MFA on those memberships or revoke the grants, then rerun.");
             }

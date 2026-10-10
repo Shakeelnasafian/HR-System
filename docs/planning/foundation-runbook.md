@@ -10,7 +10,7 @@ Prerequisites: Docker Engine with Compose v2. Node/PHP are built in the containe
 2. Build and initialize:
 
 ```sh
-docker compose build api web
+docker compose build api web   # backend services share one image tag
 docker compose up -d postgres redis
 docker compose run --rm migrate
 docker compose run --rm migrate php artisan hr:demo

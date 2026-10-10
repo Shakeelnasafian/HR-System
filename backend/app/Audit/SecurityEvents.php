@@ -25,9 +25,9 @@ final class SecurityEvents
             Log::error('Security event could not be recorded.', ['event'=>$event, 'exception'=>$e::class, 'message'=>$e->getMessage()]);
         }
     }
-    /** Keyed so the stored value cannot be reversed with a dictionary of known emails without the app key. */
+    /** Keyed with a purpose-derived subkey so a dictionary of known emails cannot reverse it and the raw app key is not reused. */
     public static function hash(string $identifier): string
     {
-        return hash_hmac('sha256', Str::lower(trim($identifier)), (string) config('app.key'));
+        return hash_hmac('sha256', Str::lower(trim($identifier)), hash_hmac('sha256', 'security-events.identifier', (string) config('app.key'), true));
     }
 }

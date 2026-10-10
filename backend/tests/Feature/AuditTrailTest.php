@@ -76,7 +76,7 @@ class AuditTrailTest extends FoundationFixture
     public function test_lockout_is_recorded_with_hashed_identifier(): void
     {
         for($i=0;$i<5;$i++) { $this->postJson('/login',['email'=>'member@example.test','password'=>'incorrect-secret'])->assertUnprocessable(); }
-        $this->postJson('/login',['email'=>'member@example.test','password'=>'incorrect-secret'])->assertStatus(429);
+        for($i=0;$i<3;$i++) { $this->postJson('/login',['email'=>'member@example.test','password'=>'incorrect-secret'])->assertStatus(429); }
         $locked=$this->security()->where('event','login.locked_out');
         $this->assertCount(1,$locked);
         $this->assertSame(SecurityEvents::hash('member@example.test'),$locked->first()->identifier_hash);
