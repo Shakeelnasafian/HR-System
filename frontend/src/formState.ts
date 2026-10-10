@@ -62,7 +62,24 @@ export function useSubmit() {
       .flatMap(([, messages]) => messages)
       .join(" ");
   }
-  return { busy, error, conflict, run, fail, clearConflict, fieldError };
+  /**
+   * Alert text: a short pointer when errors are shown inline next to the
+   * given fields (avoids announcing them twice), plus any messages for
+   * fields the form does not display.
+   */
+  function summary(inline: string[]) {
+    const keys = Object.keys(fields);
+    if (!error || !keys.length) return error;
+    const shown = (key: string) =>
+      inline.some((name) => key === name || key.startsWith(name + "."));
+    const other = keys
+      .filter((key) => !shown(key))
+      .flatMap((key) => fields[key])
+      .join(" ");
+    if (keys.length && !keys.some(shown)) return other || error;
+    return ["Check the highlighted fields.", other].filter(Boolean).join(" ");
+  }
+  return { busy, error, conflict, run, fail, clearConflict, fieldError, summary };
 }
 
 /** Accessible props for an input linked to its field error. */

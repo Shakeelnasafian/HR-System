@@ -84,7 +84,8 @@ test("real cookie login, privileged MFA enrollment and company scope", async ({
   await page.getByRole("button", { name: "Create calendar", exact: true }).click();
   await expect(page.getByText("Calendar STD created.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Open STD", exact: true }).click();
-  const holidayDate = `${new Date().getFullYear()}-12-30`;
+  const holidayYear = await page.getByLabel("Holiday year", { exact: true }).inputValue();
+  const holidayDate = `${holidayYear}-12-30`;
   await page.getByLabel("Holiday date", { exact: true }).fill(holidayDate);
   await page.getByLabel("Holiday name", { exact: true }).fill("Synthetic closure");
   await page.getByLabel("Reason for holiday", { exact: true }).fill("Synthetic holiday fixture");

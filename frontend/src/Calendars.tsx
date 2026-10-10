@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { api } from "./api";
 import { FieldError, SubmitError, WeekdayFieldset } from "./FormParts";
 import { fieldProps, formatWorkingDays, useSubmit } from "./formState";
@@ -39,7 +39,23 @@ export function Calendars({
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [creating, setCreating] = useState(false),
-    [selected, setSelected] = useState("");
+    [selected, setSelected] = useState(""),
+    [companyYear, setCompanyYear] = useState<number | null>(null);
+  useEffect(() => {
+    // Holidays default to the current year in the company timezone.
+    const c = new AbortController();
+    api<{ data: { timezone: string | null } }>(base, {
+      tenant,
+      signal: c.signal,
+    })
+      .then((r) => {
+        if (!c.signal.aborted) setCompanyYear(yearIn(r.data.timezone));
+      })
+      .catch(() => {
+        if (!c.signal.aborted) setCompanyYear(yearIn(null));
+      });
+    return () => c.abort();
+  }, [base, tenant]);
   useEffect(() => {
     if (selected) return;
     const c = new AbortController();
@@ -57,10 +73,13 @@ export function Calendars({
       });
     return () => c.abort();
   }, [base, tenant, includeArchived, revision, selected]);
-  if (selected)
+  if (selected && companyYear === null)
+    return <p role="status">Loading calendar…</p>;
+  if (selected && companyYear !== null)
     return (
       <CalendarDetail
         key={selected}
+        defaultYear={companyYear}
         tenant={tenant}
         base={base}
         id={selected}
@@ -221,7 +240,7 @@ function CreateCalendarForm({
     <form className="panel module-form" onSubmit={save}>
       <h3>New working calendar</h3>
       <SubmitError
-        error={submit.error}
+        error={submit.summary(["code", "name", "effective_from", "working_days", "reason"])}
         conflict={false}
         what="calendar"
         onReload={() => undefined}
@@ -293,22 +312,22 @@ function CalendarDetail({
   base,
   id,
   canWrite,
+  defaultYear,
   onBack,
 }: {
   tenant: string;
   base: string;
   id: string;
   canWrite: boolean;
+  defaultYear: number;
   onBack: () => void;
 }) {
   const [detail, setDetail] = useState<CalendarDetailData | null>(null),
-    [year, setYear] = useState(currentYear),
-    [yearInput, setYearInput] = useState(() => String(currentYear())),
+    [year, setYear] = useState(defaultYear),
+    [yearInput, setYearInput] = useState(String(defaultYear)),
     [revision, setRevision] = useState(0),
     [error, setError] = useState(""),
-    [message, setMessage] = useState(""),
-    [formKey, setFormKey] = useState(0);
-  const resetRename = useRef(false);
+    [message, setMessage] = useState("");
   const path = `${base}/calendars/${id}`;
   useEffect(() => {
     const c = new AbortController();
@@ -320,12 +339,6 @@ function CalendarDetail({
         if (c.signal.aborted) return;
         setDetail(r.data);
         setError("");
-        // Re-seed the rename form only after its own successful save; a
-        // conflict reload keeps whatever the user typed.
-        if (resetRename.current) {
-          resetRename.current = false;
-          setFormKey((n) => n + 1);
-        }
       })
       .catch((e) => {
         if (!c.signal.aborted) setError(e.message);
@@ -333,9 +346,8 @@ function CalendarDetail({
     return () => c.abort();
   }, [path, tenant, year, revision]);
   const reload = () => setRevision((n) => n + 1);
-  function saved(text: string, reseedRename = false) {
+  function saved(text: string) {
     setMessage(text);
-    resetRename.current = reseedRename;
     reload();
   }
   const patterns = detail
@@ -368,12 +380,11 @@ function CalendarDetail({
           </div>
           {canWrite && (
             <RenameForm
-              key={"rename" + formKey}
               tenant={tenant}
               path={path}
               calendar={detail}
               onReload={reload}
-              onSaved={() => saved("Calendar details saved.", true)}
+              onSaved={() => saved("Calendar details saved.")}
             />
           )}
           <h4>Working-day pattern history</h4>
@@ -451,6 +462,7 @@ function CalendarDetail({
               tenant={tenant}
               path={path}
               calendar={detail}
+              year={year}
               onReload={reload}
               onSaved={(text) => saved(text)}
             />
@@ -463,7 +475,18 @@ function CalendarDetail({
   );
 }
 
-const currentYear = () => new Date().getFullYear();
+/** Current calendar year in a timezone, falling back to the browser's. */
+function yearIn(timezone: string | null) {
+  try {
+    if (timezone)
+      return Number(
+        new Intl.DateTimeFormat("en-US", { timeZone: timezone, year: "numeric" }).format(new Date()),
+      );
+  } catch {
+    // Unknown identifier in this browser: use the local year.
+  }
+  return new Date().getFullYear();
+}
 
 type ChildProps = {
   tenant: string;
@@ -480,26 +503,38 @@ function RenameForm({
   onSaved,
 }: ChildProps & { onSaved: () => void }) {
   const id = useId();
-  const [name, setName] = useState(calendar.name),
-    [archived, setArchived] = useState(calendar.archived),
+  // null = untouched: the field follows the latest loaded calendar, so a
+  // conflict reload refreshes it while edited fields keep the user's input.
+  const [nameInput, setName] = useState<string | null>(null),
+    [archivedInput, setArchived] = useState<boolean | null>(null),
     [reason, setReason] = useState("");
   const submit = useSubmit();
+  const name = nameInput ?? calendar.name,
+    archived = archivedInput ?? calendar.archived;
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const body = {
+    const body: Record<string, unknown> = {
       version: calendar.version,
       reason: reason.trim(),
-      name: name.trim(),
-      archived,
     };
-    if (await submit.run(() => api(path, { tenant, method: "PATCH", body })))
+    if (name.trim() !== calendar.name) body.name = name.trim();
+    if (archived !== calendar.archived) body.archived = archived;
+    if (!("name" in body) && !("archived" in body)) {
+      submit.fail("Change the name or archive status before saving.");
+      return;
+    }
+    if (await submit.run(() => api(path, { tenant, method: "PATCH", body }))) {
+      setName(null);
+      setArchived(null);
+      setReason("");
       onSaved();
+    }
   }
   return (
     <form className="panel module-form" onSubmit={save}>
       <h4>Rename or archive</h4>
       <SubmitError
-        error={submit.error}
+        error={submit.summary(["name", "reason"])}
         conflict={submit.conflict}
         what="calendar"
         onReload={() => {
@@ -586,7 +621,7 @@ function PatternForm({
     <form className="panel module-form" onSubmit={save}>
       <h4>Add working-day pattern</h4>
       <SubmitError
-        error={submit.error}
+        error={submit.summary(["effective_from", "working_days", "reason"])}
         conflict={submit.conflict}
         what="calendar"
         onReload={() => {
@@ -640,7 +675,8 @@ function HolidayForm({
   calendar,
   onReload,
   onSaved,
-}: ChildProps & { onSaved: (text: string) => void }) {
+  year,
+}: ChildProps & { year: number; onSaved: (text: string) => void }) {
   const id = useId();
   const [date, setDate] = useState(""),
     [name, setName] = useState(""),
@@ -662,14 +698,19 @@ function HolidayForm({
       setDate("");
       setName("");
       setReason("");
-      onSaved(`Holiday ${body.name} on ${body.holiday_date} added.`);
+      const added = body.holiday_date.slice(0, 4);
+      onSaved(
+        added === String(year)
+          ? `Holiday ${body.name} on ${body.holiday_date} added.`
+          : `Holiday ${body.name} on ${body.holiday_date} added for ${added}; switch the holiday year to ${added} to view it.`,
+      );
     }
   }
   return (
     <form className="panel module-form" onSubmit={save}>
       <h4>Add holiday</h4>
       <SubmitError
-        error={submit.error}
+        error={submit.summary(["holiday_date", "name", "reason"])}
         conflict={submit.conflict}
         what="calendar"
         onReload={() => {
@@ -736,6 +777,7 @@ function HolidayList({
   const [removing, setRemoving] = useState<Holiday | null>(null),
     [reason, setReason] = useState("");
   const submit = useSubmit();
+  const canRemove = canWrite && !calendar.archived;
   const holidays = [...calendar.holidays].sort((a, b) =>
     a.holiday_date.localeCompare(b.holiday_date),
   );
@@ -767,7 +809,7 @@ function HolidayList({
             <tr>
               <th>Date</th>
               <th>Name</th>
-              {canWrite && <th>Actions</th>}
+              {canRemove && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -775,7 +817,7 @@ function HolidayList({
               <tr key={h.id}>
                 <td>{h.holiday_date}</td>
                 <td>{h.name}</td>
-                {canWrite && (
+                {canRemove && (
                   <td>
                     <button
                       className="text-button"
@@ -794,7 +836,7 @@ function HolidayList({
         </table>
       </div>
       {!holidays.length && <p>No holidays recorded for {year}.</p>}
-      {canWrite && removing && (
+      {canRemove && removing && (
         <form className="panel module-form" onSubmit={remove}>
           <h4>
             Confirm removal: {removing.name} on {removing.holiday_date}
@@ -804,7 +846,7 @@ function HolidayList({
             pattern. The removal is recorded in audit history.
           </p>
           <SubmitError
-            error={submit.error}
+            error={submit.summary(["reason"])}
             conflict={submit.conflict}
             what="calendar"
             onReload={() => {
