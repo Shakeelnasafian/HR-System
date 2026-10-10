@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Http\Middleware;
+
 use App\Audit\RequestId;
 use Closure;
 use Illuminate\Http\Request;
@@ -12,6 +14,7 @@ final class AssignRequestId
         $id = app(RequestId::class)->assignForRequest();
         $response = $next($request);
         $response->headers->set('X-Request-ID', $id);
+
         return $response;
     }
 }

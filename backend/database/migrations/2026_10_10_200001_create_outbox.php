@@ -1,8 +1,10 @@
 <?php
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         // Events commit with the domain change that caused them; the relay leases them and workers deliver after commit.
@@ -31,6 +33,7 @@ return new class extends Migration {
             DB::statement("CREATE POLICY tenant_boundary ON $table USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid) WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)");
         }
     }
+
     public function down(): void
     {
         DB::statement('DROP TABLE outbox_attempts');

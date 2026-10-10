@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Jobs;
+
 use App\Messaging\OutboxDelivery;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -8,8 +10,13 @@ use Illuminate\Foundation\Queue\Queueable;
 final class DeliverOutboxEvent implements ShouldQueue
 {
     use Queueable;
+
     public int $tries = 1;
 
     public function __construct(public string $tenantId, public string $eventId, public int $attempt) {}
-    public function handle(OutboxDelivery $delivery): void { $delivery->run($this->tenantId, $this->eventId, $this->attempt); }
+
+    public function handle(OutboxDelivery $delivery): void
+    {
+        $delivery->run($this->tenantId, $this->eventId, $this->attempt);
+    }
 }

@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Messaging;
+
 use App\Audit\RequestId;
 use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
@@ -19,11 +21,19 @@ final class Outbox
     {
         $context = app(TenantContext::class);
         $tenant = $context->id();
-        if (DB::transactionLevel() === 0) { throw new LogicException('Outbox events must be recorded inside the tenant transaction.'); }
-        if (! preg_match('/^[a-z][a-z0-9_.-]{0,79}$/', $type)) { throw new InvalidArgumentException('Invalid outbox event type.'); }
-        if ($dedupeKey === '' || strlen($dedupeKey) > 200) { throw new InvalidArgumentException('Invalid outbox dedupe key.'); }
+        if (DB::transactionLevel() === 0) {
+            throw new LogicException('Outbox events must be recorded inside the tenant transaction.');
+        }
+        if (! preg_match('/^[a-z][a-z0-9_.-]{0,79}$/', $type)) {
+            throw new InvalidArgumentException('Invalid outbox event type.');
+        }
+        if ($dedupeKey === '' || strlen($dedupeKey) > 200) {
+            throw new InvalidArgumentException('Invalid outbox dedupe key.');
+        }
         foreach ($payload as $key => $value) {
-            if (! is_string($key) || ! ($value === null || is_scalar($value))) { throw new InvalidArgumentException('Outbox payload must map names to scalar values.'); }
+            if (! is_string($key) || ! ($value === null || is_scalar($value))) {
+                throw new InvalidArgumentException('Outbox payload must map names to scalar values.');
+            }
         }
         $id = (string) Str::uuid();
         $inserted = DB::select('INSERT INTO outbox_events (id, tenant_id, company_id, type, payload, dedupe_key, actor_id, correlation_id)
@@ -31,10 +41,15 @@ final class Outbox
             $id, $tenant, $company, $type, json_encode((object) $payload, JSON_THROW_ON_ERROR), $dedupeKey,
             $context->isSystem() ? null : $context->userId(), app(RequestId::class)->current(),
         ]);
-        if ($inserted) { return $id; }
+        if ($inserted) {
+            return $id;
+        }
         // A replay keeps the first event as recorded: a differing payload/company is ignored, a differing type is a key collision.
         $existing = DB::table('outbox_events')->where('tenant_id', $tenant)->where('dedupe_key', $dedupeKey)->select('id', 'type')->first();
-        if ($existing->type !== $type) { throw new LogicException('Outbox dedupe key already used for another event type.'); }
+        if ($existing->type !== $type) {
+            throw new LogicException('Outbox dedupe key already used for another event type.');
+        }
+
         return $existing->id;
     }
 }

@@ -1,8 +1,10 @@
 <?php
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         // Names are stored trimmed and stay reserved after archive, regardless of case.
@@ -11,6 +13,7 @@ return new class extends Migration {
         DB::statement("ALTER TABLE permission_bundles ADD CONSTRAINT permission_bundles_name_trimmed CHECK (name = btrim(name) AND name <> '')");
         DB::statement("ALTER TABLE permission_bundles ADD CONSTRAINT permission_bundles_permissions_nonempty CHECK (jsonb_typeof(permissions) = 'array' AND jsonb_array_length(permissions) > 0)");
     }
+
     public function down(): void
     {
         DB::statement('ALTER TABLE permission_bundles DROP CONSTRAINT permission_bundles_permissions_nonempty');

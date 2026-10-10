@@ -1,7 +1,10 @@
 <?php
+
 namespace App\Http\Middleware;
+
 use App\Tenancy\TenantContext;
 use Closure;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 
 final class TenantRequest
@@ -14,6 +17,7 @@ final class TenantRequest
         $user = $request->user();
         $enrolled = $user->two_factor_confirmed_at && $user->two_factor_secret;
         $verified = $enrolled && (int) $request->session()->get('mfa_user_id') === (int) $user->id;
+
         // The membership flag gates the whole tenant; privileged permissions additionally require $verified at use (CompanyAccess).
         return app(TenantContext::class)->run($id, (int) $user->id, function ($membership) use ($request, $next, $enrolled, $verified) {
             if ($membership->requires_mfa) {
@@ -21,8 +25,11 @@ final class TenantRequest
                 abort_unless($verified, 403, 'MFA login required.');
             }
             $response = $next($request);
-            if ($response->getStatusCode() >= 400) { throw new \Illuminate\Http\Exceptions\HttpResponseException($response); }
+            if ($response->getStatusCode() >= 400) {
+                throw new HttpResponseException($response);
+            }
             $response->headers->set('Cache-Control', 'no-store, private');
+
             return $response;
         }, $verified);
     }

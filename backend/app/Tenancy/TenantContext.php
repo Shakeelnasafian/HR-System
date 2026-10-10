@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Tenancy;
 
 use Closure;
@@ -10,8 +11,11 @@ use LogicException;
 final class TenantContext
 {
     private ?string $tenantId = null;
+
     private ?int $userId = null;
+
     private bool $mfaVerified = false;
+
     private bool $system = false;
 
     /** $mfaVerified: this principal completed MFA in the current session. Jobs and console never have one, so they default to false. */
@@ -33,6 +37,7 @@ final class TenantContext
                 $this->tenantId = $tenantId;
                 $this->userId = $userId;
                 $this->mfaVerified = $mfaVerified;
+
                 return $work($membership);
             });
         } finally {
@@ -41,6 +46,7 @@ final class TenantContext
             $this->mfaVerified = false;
         }
     }
+
     /**
      * Narrow service authority for console/queue work (outbox relay and delivery): tenant-scoped RLS context with NO
      * user principal, so userId() keeps throwing and CompanyAccess/user audit fail closed. Never reachable from HTTP.
@@ -55,13 +61,16 @@ final class TenantContext
         if ($this->tenantId !== null || DB::transactionLevel() !== 0) {
             throw new LogicException('A tenant boundary must start outside any existing transaction.');
         }
-        if (! Str::isUuid($tenantId)) { throw new LogicException('Invalid tenant selector.'); }
+        if (! Str::isUuid($tenantId)) {
+            throw new LogicException('Invalid tenant selector.');
+        }
         try {
             return DB::transaction(function () use ($tenantId, $work) {
                 abort_unless(DB::table('tenants')->where('id', $tenantId)->where('status', 'active')->exists(), 403, 'Tenant access unavailable.');
                 DB::select("select set_config('app.tenant_id', ?, true)", [$tenantId]);
                 $this->tenantId = $tenantId;
                 $this->system = true;
+
                 return $work();
             });
         } finally {
@@ -69,8 +78,28 @@ final class TenantContext
             $this->system = false;
         }
     }
-    public function isSystem(): bool { $this->id(); return $this->system; }
-    public function id(): string { return $this->tenantId ?? throw new LogicException('Missing tenant context.'); }
-    public function userId(): int { return $this->userId ?? throw new LogicException('Missing tenant principal.'); }
-    public function mfaVerified(): bool { $this->id(); return $this->mfaVerified; }
+
+    public function isSystem(): bool
+    {
+        $this->id();
+
+        return $this->system;
+    }
+
+    public function id(): string
+    {
+        return $this->tenantId ?? throw new LogicException('Missing tenant context.');
+    }
+
+    public function userId(): int
+    {
+        return $this->userId ?? throw new LogicException('Missing tenant principal.');
+    }
+
+    public function mfaVerified(): bool
+    {
+        $this->id();
+
+        return $this->mfaVerified;
+    }
 }

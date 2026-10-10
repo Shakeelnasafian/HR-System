@@ -1,8 +1,10 @@
 <?php
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         // FORCE RLS would hide rows from a non-superuser owner during the backfill; restored before commit.
@@ -20,14 +22,15 @@ return new class extends Migration {
         // Authentication events happen before any tenant is selected (failed logins may not even map to a user),
         // so this table is global and deliberately outside tenant RLS. Runtime is granted INSERT only: it can
         // neither read nor alter the log; review happens through the owner/admin connection.
-        DB::statement("CREATE TABLE security_events (
+        DB::statement('CREATE TABLE security_events (
             id uuid PRIMARY KEY, seq bigint GENERATED ALWAYS AS IDENTITY UNIQUE, user_id bigint NULL, event varchar(64) NOT NULL,
             identifier_hash char(64) NULL, ip varchar(45) NULL, user_agent varchar(255) NULL, correlation_id uuid NOT NULL,
-            occurred_at timestamp(6) with time zone NOT NULL DEFAULT clock_timestamp())");
+            occurred_at timestamp(6) with time zone NOT NULL DEFAULT clock_timestamp())');
         DB::statement('CREATE INDEX security_events_user_seq_index ON security_events (user_id, seq)');
         DB::statement('CREATE INDEX security_events_identifier_seq_index ON security_events (identifier_hash, seq) WHERE identifier_hash IS NOT NULL');
         DB::statement('CREATE INDEX security_events_occurred_at_index ON security_events (occurred_at)');
     }
+
     public function down(): void
     {
         DB::statement('DROP TABLE security_events');

@@ -1,11 +1,13 @@
 <?php
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 // Defence in depth for operator/SQL seeding: a privileged grant can only exist on a membership that requires MFA.
 // The privileged set lives in hr_permission_requires_mfa() and must equal PermissionCatalog::requiresMfa() (MfaEnforcementTest).
 // Every function is SECURITY INVOKER: the inserting/updating role needs its own rights on these rows anyway.
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         DB::transaction(function () {
@@ -16,8 +18,8 @@ return new class extends Migration {
             SQL);
             // The non-superuser owner is exempt from RLS only while FORCE is lifted, so count every tenant's rows inside this transaction.
             DB::statement('ALTER TABLE company_grants NO FORCE ROW LEVEL SECURITY');
-            $violations = DB::selectOne("SELECT count(*) AS n FROM company_grants g JOIN tenant_memberships m ON m.tenant_id = g.tenant_id AND m.id = g.membership_id
-                WHERE hr_permission_requires_mfa(g.permission) AND m.requires_mfa IS NOT TRUE")->n;
+            $violations = DB::selectOne('SELECT count(*) AS n FROM company_grants g JOIN tenant_memberships m ON m.tenant_id = g.tenant_id AND m.id = g.membership_id
+                WHERE hr_permission_requires_mfa(g.permission) AND m.requires_mfa IS NOT TRUE')->n;
             DB::statement('ALTER TABLE company_grants FORCE ROW LEVEL SECURITY');
             if ($violations > 0) {
                 throw new RuntimeException("$violations privileged company grant(s) belong to memberships without requires_mfa. Require MFA on those memberships or revoke the grants, then rerun.");
@@ -67,6 +69,7 @@ return new class extends Migration {
             SQL);
         });
     }
+
     public function down(): void
     {
         DB::unprepared(<<<'SQL'
