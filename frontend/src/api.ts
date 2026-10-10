@@ -1,6 +1,7 @@
 export class ApiError extends Error {
   status: number
-  constructor(status: number, message: string) { super(message); this.status = status }
+  errors: Record<string, string[]>
+  constructor(status: number, message: string, errors: Record<string, string[]> = {}) { super(message); this.status = status; this.errors = errors }
 }
 export async function api<T>(path: string, options: {method?: string; body?: unknown; tenant?: string; signal?: AbortSignal} = {}): Promise<T> {
   const method = options.method ?? 'GET'
@@ -17,7 +18,7 @@ export async function api<T>(path: string, options: {method?: string; body?: unk
   if (!response.ok) {
     if (response.status === 401 && path.startsWith('/api/') && path !== '/api/v1/me') window.dispatchEvent(new Event('session-expired'))
     const message = body?.errors ? Object.values(body.errors).flat().join(' ') : body?.message
-    throw new ApiError(response.status, message || `Request failed (${response.status}). Please try again.`)
+    throw new ApiError(response.status, message || `Request failed (${response.status}). Please try again.`, body?.errors && typeof body.errors === 'object' ? body.errors : {})
   }
   return body as T
 }
