@@ -2,6 +2,15 @@
 
 use App\Http\Controllers\Api\Account\CurrentUserController;
 use App\Http\Controllers\Api\Account\TimezoneController;
+use App\Http\Controllers\Api\Tenancy\CapabilitiesController;
+use App\Http\Controllers\Api\Tenancy\CompanyAccessController;
+use App\Http\Controllers\Api\Tenancy\ContextController;
+use App\Http\Controllers\Api\Tenancy\InvitationController;
+use App\Http\Controllers\Api\Tenancy\InvitationLinkController;
+use App\Http\Controllers\Api\Tenancy\PermissionBundleController;
+use App\Http\Controllers\Api\Tenancy\RevokeMembershipController;
+use App\Organization\CalendarController;
+use App\Organization\CompanySettingsController;
 use App\Http\Controllers\Api\Organization\CalendarController;
 use App\Http\Controllers\Api\Organization\CalendarHolidayController;
 use App\Http\Controllers\Api\Organization\CalendarPatternController;
@@ -25,7 +34,7 @@ use Illuminate\Support\Facades\Route;
  */
 
 // Public invitation endpoints (SPA session and CSRF, rate limited by IP).
-Route::prefix('v1/invitations')->middleware('throttle:invitations')->controller(InvitationAcceptance::class)->group(function () {
+Route::prefix('v1/invitations')->middleware('throttle:invitations')->controller(InvitationLinkController::class)->group(function () {
     Route::post('preview', 'preview');
     Route::post('accept', 'accept');
 });
@@ -43,13 +52,13 @@ Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
 
         Route::prefix('companies/{company}')->group(function () {
             // Tenancy: capabilities, permission bundles, company access, invitations.
-            Route::get('capabilities', [WorkforceController::class, 'capabilities']);
+            Route::get('capabilities', CapabilitiesController::class);
             Route::get('permission-bundles', [PermissionBundleController::class, 'index']);
             Route::post('permission-bundles', [PermissionBundleController::class, 'store']);
             Route::post('permission-bundles/{bundle}/archive', [PermissionBundleController::class, 'archive']);
-            Route::get('access', [AccessController::class, 'index']);
-            Route::put('access/{membership}', [AccessController::class, 'replace']);
-            Route::post('access/{membership}/revoke-membership', [AccessController::class, 'revokeMembership']);
+            Route::get('access', [CompanyAccessController::class, 'index']);
+            Route::put('access/{membership}', [CompanyAccessController::class, 'update']);
+            Route::post('access/{membership}/revoke-membership', RevokeMembershipController::class);
             Route::get('invitations', [InvitationController::class, 'index']);
             Route::post('invitations', [InvitationController::class, 'store']);
             Route::post('invitations/{invitation}/resend', [InvitationController::class, 'resend']);

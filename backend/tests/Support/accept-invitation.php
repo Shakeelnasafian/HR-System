@@ -1,7 +1,8 @@
 <?php
 
+use App\Actions\Tenancy\AcceptInvitation;
+use App\Http\Requests\Tenancy\InvitationLinkRequest;
 use App\Models\User;
-use App\Tenancy\InvitationAcceptance;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -27,7 +28,9 @@ try {
     $request->headers->set('Origin', 'http://localhost'); // the SPA origin (stateful)
     app()->instance('request', $request); // security events read the current request (rebinding resets the user resolver)
     $request->setUserResolver(fn () => $user === 'new' ? null : User::findOrFail((int) $user)); // stands in for the session
-    app(InvitationAcceptance::class)->accept($request);
+    // What InvitationLinkController::accept does: origin and selector checks, then the acceptance action.
+    $link = InvitationLinkRequest::createFrom($request);
+    app(AcceptInvitation::class)->handle($link->key(), $request->user(), $request->all());
     echo '200';
 } catch (HttpExceptionInterface $e) {
     echo $e->getStatusCode();
