@@ -12,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 
 final class AccessController
 {
-    private function company(Request $r, string $company, bool $lock=false): object
+    public function company(Request $r, string $company, bool $lock=false): object
     {
         abort_unless(Str::isUuid($company),404);
         $q=app(CompanyAccess::class)->readable('access.manage')->where('companies.id',$company);
@@ -31,12 +31,12 @@ final class AccessController
                 $q->selectRaw('1')->from('company_grants as g')->where('g.tenant_id',$tenant)->where('g.company_id',$company)->whereColumn('g.membership_id','m.id');
             });
     }
-    private function actorMembership(): object
+    public function actorMembership(): object
     {
         $context=app(TenantContext::class);
         return DB::table('tenant_memberships')->where('tenant_id',$context->id())->where('user_id',$context->userId())->where('status','active')->firstOrFail();
     }
-    private function grants(string $company, string $membership): Builder
+    public function grants(string $company, string $membership): Builder
     {
         return DB::table('company_grants')->where('tenant_id',app(TenantContext::class)->id())->where('company_id',$company)->where('membership_id',$membership);
     }
