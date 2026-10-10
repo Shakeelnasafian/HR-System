@@ -1,8 +1,8 @@
 <?php
 
 use App\Models\User;
-use App\Tenancy\AccessController;
 use App\Services\Tenancy\TenantContext;
+use App\Tenancy\AccessController;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;

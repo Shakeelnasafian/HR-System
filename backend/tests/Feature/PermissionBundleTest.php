@@ -127,6 +127,6 @@ class PermissionBundleTest extends FoundationFixture
         $this->putJson('/api/v1/companies/'.$this->a.'/access/'.$target, ['version' => 1, 'permissions' => $permissions, 'reason' => 'Apply bundle'])
             ->assertUnprocessable()->assertJsonValidationErrors('permissions');
         $this->assertSame(['company.read'], $db->table('company_grants')->where('membership_id', $target)->pluck('permission')->all());
-        $this->assertSame(1,$db->table('companies')->where('id',$this->a)->value('access_version'));
+        $this->assertSame(1, $db->table('companies')->where('id', $this->a)->value('access_version'));
     }
 }

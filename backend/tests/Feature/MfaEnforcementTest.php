@@ -122,6 +122,6 @@ class MfaEnforcementTest extends FoundationFixture
             $this->assertSame(403, $e->getStatusCode());
         }
         $this->assertSame(1, $context->run($this->t1, $this->uid, fn () => $access->readable('workforce.read')->count(), true));
-        $this->assertSame(0,$context->run($this->t1,$this->uid,fn () => $access->readable('audit.read')->count()));
+        $this->assertSame(0, $context->run($this->t1, $this->uid, fn () => $access->readable('audit.read')->count()));
     }
 }

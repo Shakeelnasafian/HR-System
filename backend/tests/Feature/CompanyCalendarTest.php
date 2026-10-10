@@ -265,7 +265,7 @@ class CompanyCalendarTest extends FoundationFixture
         ];
         foreach ($writes as $label => $write) {
             try {
-                $context->run($this->t1,$this->uid,$write);
+                $context->run($this->t1, $this->uid, $write);
                 $this->fail("Expected the database to reject: $label");
             } catch (QueryException) {
                 $this->addToAssertionCount(1);

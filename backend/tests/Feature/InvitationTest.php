@@ -4,10 +4,10 @@ namespace Tests\Feature;
 
 use App\Jobs\DeliverOutboxEvent;
 use App\Mail\InvitationMail;
-use App\Services\Messaging\OutboxDelivery;
-use App\Services\Messaging\OutboxRelay;
 use App\Models\User;
 use App\Services\Messaging\Handlers\InvitationSendHandler;
+use App\Services\Messaging\OutboxDelivery;
+use App\Services\Messaging\OutboxRelay;
 use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -487,26 +487,26 @@ class InvitationTest extends FoundationFixture
             DB::select('SELECT * FROM hr_revoke_membership(?::uuid, ?::uuid, ?::uuid[])', [$this->membership, (string) Str::uuid(), '{}']);
             $this->fail('Revoke without tenant context succeeded.');
         } catch (QueryException $e) {
-            $this->assertSame('42501',$e->errorInfo[0]);
+            $this->assertSame('42501', $e->errorInfo[0]);
         }
         try {
-            DB::select('SELECT * FROM hr_accept_invitation(?::uuid, ?::uuid, ?, ?, ?::uuid)',[$this->t1, (string) Str::uuid(), hash('sha256','x'), $this->uid, (string) Str::uuid()]);
+            DB::select('SELECT * FROM hr_accept_invitation(?::uuid, ?::uuid, ?, ?, ?::uuid)', [$this->t1, (string) Str::uuid(), hash('sha256', 'x'), $this->uid, (string) Str::uuid()]);
             $this->fail('Forged accept succeeded.');
         } catch (QueryException $e) {
-            $this->assertSame('P0002',$e->errorInfo[0]);
+            $this->assertSame('P0002', $e->errorInfo[0]);
         }
-        $this->assertSame('',(string) DB::selectOne("SELECT coalesce(current_setting('app.tenant_id', true), '') AS v")->v);
+        $this->assertSame('', (string) DB::selectOne("SELECT coalesce(current_setting('app.tenant_id', true), '') AS v")->v);
     }
 
     public function test_public_endpoints_are_rate_limited_and_spa_only(): void
     {
         $link = ['tenant' => $this->t1, 'invitation' => (string) Str::uuid(), 'token' => Str::random(43)];
-        $this->withoutHeader('Origin')->postJson('/api/v1/invitations/preview',$link)->assertForbidden();
-        $this->withHeader('Origin','https://evil.example')->postJson('/api/v1/invitations/accept',$link)->assertForbidden();
-        $this->withHeader('Origin','http://localhost');
-        foreach (range(1,8) as $_) {
-            $this->open('preview',$link)->assertNotFound();
+        $this->withoutHeader('Origin')->postJson('/api/v1/invitations/preview', $link)->assertForbidden();
+        $this->withHeader('Origin', 'https://evil.example')->postJson('/api/v1/invitations/accept', $link)->assertForbidden();
+        $this->withHeader('Origin', 'http://localhost');
+        foreach (range(1, 8) as $_) {
+            $this->open('preview', $link)->assertNotFound();
         }
-        $this->open('preview',$link)->assertStatus(429);
+        $this->open('preview', $link)->assertStatus(429);
     }
 }

@@ -359,17 +359,17 @@ class AssignmentTest extends FoundationFixture
         $this->postJson($this->url("employments/$m/cancel"), ['version' => 1, 'reason' => 'Mistake'])->assertOk();
         $response = $this->assign($e, ['effective_from' => '2026-03-01', 'position_id' => $pos])->assertUnprocessable()->assertJsonValidationErrors(['department_id', 'manager_employment_id']);
         $this->assertStringContainsString('clear it explicitly', $response->json('errors.department_id.0'));
-        $this->assign($e,['effective_from' => '2026-03-01', 'position_id' => $pos, 'department_id' => null, 'manager_employment_id' => null])->assertCreated()
-            ->assertJsonPath('data.department',null)->assertJsonPath('data.manager',null)->assertJsonPath('data.position.id',$pos);
-        $this->assertSame(2,$this->version($m)); // cancelled once; the rejected assignment left the manager untouched
+        $this->assign($e, ['effective_from' => '2026-03-01', 'position_id' => $pos, 'department_id' => null, 'manager_employment_id' => null])->assertCreated()
+            ->assertJsonPath('data.department', null)->assertJsonPath('data.manager', null)->assertJsonPath('data.position.id', $pos);
+        $this->assertSame(2, $this->version($m)); // cancelled once; the rejected assignment left the manager untouched
     }
 
     public function test_cancelled_employment_probation_is_frozen(): void
     {
         $this->ready();
         $e = $this->person('1')['employment_id'];
-        $this->postJson($this->url("employments/$e/cancel"),['version' => 1, 'reason' => 'Mistake'])->assertOk();
-        $this->patchJson($this->url("employments/$e"),['version' => 2, 'reason' => 'Probation', 'probation_end_date' => '2026-06-30'])->assertConflict();
-        $this->assertNull(DB::connection('fixture')->table('employments')->where('id',$e)->value('probation_end_date'));
+        $this->postJson($this->url("employments/$e/cancel"), ['version' => 1, 'reason' => 'Mistake'])->assertOk();
+        $this->patchJson($this->url("employments/$e"), ['version' => 2, 'reason' => 'Probation', 'probation_end_date' => '2026-06-30'])->assertConflict();
+        $this->assertNull(DB::connection('fixture')->table('employments')->where('id', $e)->value('probation_end_date'));
     }
 }
