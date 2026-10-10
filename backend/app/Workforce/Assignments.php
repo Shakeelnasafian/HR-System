@@ -19,8 +19,11 @@ final class Assignments
 
     public static function rules(string $presence): array { return array_fill_keys(self::KEYS,$presence.'|nullable|uuid'); }
 
-    /** Explicitly supplied references must be active same-company records; a manager must be another person's draft/active employment started by $date. */
-    public function check(string $company, array $refs, string $date, string $employee): void
+    /**
+     * References must be active same-company records; a manager must be another person's draft/active employment started by $date.
+     * Keys in $inherited were copied forward rather than supplied: they are re-validated (never silently cleared) with a distinct message.
+     */
+    public function check(string $company, array $refs, string $date, string $employee, array $inherited=[]): void
     {
         $errors=[];
         foreach(self::REFS as $key=>$table) {
@@ -31,6 +34,7 @@ final class Assignments
             if(!$manager||!in_array($manager->status,['draft','active'],true)||$manager->start_date>$date) { $errors['manager_employment_id']='Select a draft or active employment in this company that starts by the effective date.'; }
             elseif($manager->employee_id===$employee) { $errors['manager_employment_id']='An employee cannot be their own manager.'; }
         }
+        foreach(array_intersect_key($errors,array_flip($inherited)) as $key=>$message) { $errors[$key]='The current value is no longer active. Choose another or clear it explicitly.'; }
         if($errors) { throw ValidationException::withMessages($errors); }
     }
     public function insert(string $company, string $employment, string $date, array $values, ?string $reason): string
@@ -46,22 +50,32 @@ final class Assignments
         DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))',['hr.reporting_line:'.$this->tenant().':'.$company]);
     }
     /**
-     * After inserting $employment's assignment at $from, walks manager links as of $from and every later assignment date
-     * (any employment in the company) before $until, the next assignment of $employment; outside that window its link is unchanged.
+     * After inserting $employment's assignment at $from, walks reporting lines between people (not employments: one person may hold
+     * several) as of $from and every later assignment date in the company before $until, the next assignment of $employment; outside
+     * that window its link is unchanged. Only employments covering the date contribute links, so ended history does not block rehires.
      */
     public function assertAcyclic(string $company, string $employment, string $from, ?string $until): void
     {
         $t=$this->tenant();
-        $cycle=DB::selectOne('WITH RECURSIVE dates(d) AS (
-                SELECT ?::date UNION SELECT effective_from FROM employment_assignments WHERE tenant_id = ? AND company_id = ? AND effective_from > ?::date AND (?::date IS NULL OR effective_from < ?::date)
-            ), walk(d, node, depth) AS (
-                SELECT d, ?::uuid, 0 FROM dates
-                UNION ALL
-                SELECT w.d, l.manager, w.depth + 1 FROM walk w CROSS JOIN LATERAL (
-                    SELECT a.manager_employment_id AS manager FROM employment_assignments a
-                    WHERE a.tenant_id = ? AND a.company_id = ? AND a.employment_id = w.node AND a.effective_from <= w.d ORDER BY a.effective_from DESC LIMIT 1) l
-                WHERE l.manager IS NOT NULL AND (w.depth = 0 OR w.node <> ?::uuid) AND w.depth < 1000
-            ) SELECT min(d) AS d FROM walk WHERE node = ?::uuid AND depth > 0',[$from,$t,$company,$from,$until,$until,$employment,$t,$company,$employment,$employment]);
+        $person=$this->rows('employments',$company)->where('id',$employment)->value('employee_id');
+        // One step: from person r.emp on date r.d to the people managing any of their employments in effect on r.d.
+        $step=fn(string $source)=>"FROM $source JOIN employments j ON j.tenant_id = :t AND j.company_id = :c AND j.employee_id = r.emp AND j.status <> 'cancelled'
+                AND j.start_date <= r.d AND (j.end_date IS NULL OR j.end_date > r.d)
+            CROSS JOIN LATERAL (SELECT a.manager_employment_id AS manager FROM employment_assignments a
+                WHERE a.tenant_id = :t AND a.company_id = :c AND a.employment_id = j.id AND a.effective_from <= r.d ORDER BY a.effective_from DESC LIMIT 1) l
+            JOIN employments m ON m.tenant_id = :t AND m.company_id = :c AND m.id = l.manager";
+        $sql='WITH RECURSIVE dates(d) AS (
+                SELECT CAST(:from AS date) UNION SELECT effective_from FROM employment_assignments WHERE tenant_id = :t AND company_id = :c AND effective_from > CAST(:from AS date)
+                    AND (CAST(:until AS date) IS NULL OR effective_from < CAST(:until AS date))
+            ), reach(d, emp) AS (
+                SELECT r.d, m.employee_id '.$step('(SELECT d, CAST(:person AS uuid) AS emp FROM dates) r').'
+                UNION
+                SELECT r.d, m.employee_id '.$step('reach r').' WHERE r.emp <> CAST(:person AS uuid)
+            ) SELECT min(d) AS d FROM reach WHERE emp = CAST(:person AS uuid)';
+        $named=['from'=>$from,'until'=>$until,'t'=>$t,'c'=>$company,'person'=>$person]; $bindings=[];
+        // Named markers repeat, so expand them to positional bindings explicitly.
+        $sql=preg_replace_callback('/:(from|until|t|c|person)\b/',function($m) use (&$bindings,$named) { $bindings[]=$named[$m[1]]; return '?'; },$sql);
+        $cycle=DB::selectOne($sql,$bindings);
         if($cycle->d) { throw ValidationException::withMessages(['manager_employment_id'=>"This reporting line would create a cycle on {$cycle->d}."]); }
     }
     /** Assignment rows with referenced codes/names and the manager's safe directory fields. */

@@ -2,6 +2,7 @@
 namespace App\Workforce;
 
 use App\Audit\Audit;
+use App\Tenancy\CompanyAccess;
 use App\Tenancy\ScopesCompany;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +20,7 @@ final class ProfileController
     use ScopesCompany;
     public const FIELDS = ['birth_date','nationality','personal_email','personal_phone','address','emergency_contacts'];
     private const RULES = [
-        'birth_date'=>'nullable|date_format:Y-m-d|before_or_equal:today', 'nationality'=>'nullable|string|max:100',
+        'birth_date'=>'nullable|date_format:Y-m-d', 'nationality'=>'nullable|string|max:100',
         'personal_email'=>'nullable|string|email|max:254', 'personal_phone'=>'nullable|string|max:50', 'address'=>'nullable|string|max:1000',
         'emergency_contacts'=>'nullable|array|list|max:5', 'emergency_contacts.*'=>'required|array:name,relationship,phone',
         'emergency_contacts.*.name'=>'required|string|max:120', 'emergency_contacts.*.relationship'=>'required|string|max:60', 'emergency_contacts.*.phone'=>'required|string|max:50',
@@ -73,28 +74,32 @@ final class ProfileController
         Audit::record($company,'profile.viewed',$employee,['fields'=>$enabled]);
         return ['data'=>['employee_id'=>$employee,'version'=>$row->version??0,'fields'=>(object)$fields]];
     }
-    /** version 0 means no profile row exists yet. Nulls clear a value. The response lists changed keys, never values (profile.write does not imply profile.read). */
+    /**
+     * version 0 means no profile row exists yet. Nulls clear a value. The response never contains values (profile.write does not imply
+     * profile.read). Every accepted PATCH, including a no-op, bumps the version and is audited with submitted and changed keys; only
+     * actors who may also read the profile learn which keys actually changed, so a write-only actor cannot confirm guessed values.
+     */
     public function update(Request $r, string $company, string $employee): array
     {
-        $this->company($company,'profile.write'); $this->subject($company,$employee);
+        $companyRow=$this->company($company,'profile.write'); $this->subject($company,$employee);
         $r->validate(['version'=>'required|integer|min:0','reason'=>'required|string|max:500','fields'=>'required|array|min:1']);
         $enabled=$this->enabled($company); $input=$r->input('fields');
         $foreign=array_diff(array_keys($input),$enabled);
         if($foreign) { throw ValidationException::withMessages(array_fill_keys(array_map(fn($k)=>"fields.$k",$foreign),'This field is not collected by this company.')); }
-        $rules=array_filter(self::RULES,fn($k)=>in_array(explode('.',$k)[0],$enabled,true),ARRAY_FILTER_USE_KEY);
+        $rules=array_filter(['birth_date'=>'nullable|date_format:Y-m-d|before_or_equal:'.now($companyRow->timezone)->toDateString()]+self::RULES,fn($k)=>in_array(explode('.',$k)[0],$enabled,true),ARRAY_FILTER_USE_KEY);
         $values=array_intersect_key($r->validate(array_combine(array_map(fn($k)=>"fields.$k",array_keys($rules)),$rules))['fields']??[],$input);
         if(isset($values['emergency_contacts'])) { $values['emergency_contacts']=self::contacts($values['emergency_contacts']); }
         // The employee row is the per-person aggregate lock (shared with employment transitions); it also serializes first creation.
         DB::table('employees')->where('tenant_id',$this->tenant())->where('id',$employee)->lockForUpdate()->first();
         $row=$this->profile($employee,true); $version=$row->version??0;
         abort_unless($version===(int)$r->input('version'),409,'This profile changed. Reload before saving.');
+        $submitted=array_keys($values);
         $changed=array_keys(array_filter($values,fn($v,$k)=>self::value($row,$k)!==$v,ARRAY_FILTER_USE_BOTH));
-        if($changed) {
-            $store=array_map(fn($v)=>is_array($v)?json_encode($v):$v,array_intersect_key($values,array_flip($changed)));
-            if($row) { DB::table('employee_profiles')->where('tenant_id',$this->tenant())->where('employee_id',$employee)->update($store+['version'=>++$version,'updated_at'=>now()]); }
-            else { DB::table('employee_profiles')->insert($store+['tenant_id'=>$this->tenant(),'employee_id'=>$employee,'version'=>++$version,'created_at'=>now(),'updated_at'=>now()]); }
-            Audit::record($company,'profile.updated',$employee,['fields'=>$changed],$r->input('reason'));
-        }
-        return ['data'=>['employee_id'=>$employee,'version'=>$version,'updated'=>$changed]];
+        $store=array_map(fn($v)=>is_array($v)?json_encode($v):$v,array_intersect_key($values,array_flip($changed)));
+        if($row) { DB::table('employee_profiles')->where('tenant_id',$this->tenant())->where('employee_id',$employee)->update($store+['version'=>++$version,'updated_at'=>now()]); }
+        else { DB::table('employee_profiles')->insert($store+['tenant_id'=>$this->tenant(),'employee_id'=>$employee,'version'=>++$version,'created_at'=>now(),'updated_at'=>now()]); }
+        Audit::record($company,'profile.updated',$employee,['fields'=>$changed,'submitted'=>$submitted],$r->input('reason'));
+        $reader=app(CompanyAccess::class)->readable('profile.read')->where('companies.id',$company)->exists();
+        return ['data'=>['employee_id'=>$employee,'version'=>$version,'updated'=>$reader?$changed:$submitted]];
     }
 }
